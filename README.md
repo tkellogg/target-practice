@@ -1,4 +1,4 @@
-# Resume Manager
+# Target Practice
 
 A React-based web application for managing resumes and job applications. Built with Vite, Material UI, and GitHub API integration.
 
