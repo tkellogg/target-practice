@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-function cleanJsonResponse(text: string): string {
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  return text.slice(start, end + 1)
+export interface AnthropicResponse {
+  content: Array<{text: string}> | string
 }
 
-export async function callAnthropicAPI(prompt: string): Promise<any> {
+export async function callAnthropicAPI(prompt: string): Promise<AnthropicResponse> {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: {
@@ -30,10 +28,9 @@ export async function callAnthropicAPI(prompt: string): Promise<any> {
   })
 
   if (!response.ok) {
-    throw new Error('Failed to call Anthropic API')
+    const error = await response.text()
+    throw new Error(`Failed to call Anthropic API: ${error}`)
   }
 
-  const data = await response.json()
-  const cleanJson = cleanJsonResponse(data.content[0].text)
-  return JSON.parse(cleanJson)
+  return response.json()
 } 

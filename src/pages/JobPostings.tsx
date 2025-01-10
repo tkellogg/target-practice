@@ -33,8 +33,17 @@ import {
 } from '@mui/material'
 import { useJobPostingStore } from '../stores/useJobPostingStore'
 import { callAnthropicAPI } from '../utils/api'
+import { extractJobInfoPrompt } from '../utils/prompts'
 import { EditableList } from '../components/EditableList'
 import { useResume } from '../hooks/useResume'
+import { SuggestionBadge } from '../components/SuggestionBadge'
+import { SplitView } from '../components/SplitView'
+import { JobRequirements } from '../components/JobRequirements'
+
+interface ExtractedData {
+  company: string
+  title: string
+}
 
 const steps = [
   'Paste Job Description',
@@ -56,9 +65,11 @@ export const JobPostings = () => {
     setSelectedPosting,
     analyzePosting,
     generateResume,
+    generateSuggestions,
     updateRequirements,
     updateSuccessCriteria,
-    exportToPDF
+    exportToPDF,
+    regenerateSection
   } = useJobPostingStore()
 
   const { resume, isLoading: isLoadingResume, error: resumeError } = useResume(selectedRepo)
@@ -71,6 +82,58 @@ export const JobPostings = () => {
     rawText: ''
   })
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+
+  // Helper function to normalize company names for matching
+  const normalizeCompanyName = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+  }
+
+  // Helper function to find suggestions for a company
+  const findCompanySuggestions = (companyName: string, suggestions?: Record<string, any>) => {
+    if (!suggestions) {
+      console.log('No suggestions provided for company:', companyName)
+      return null
+    }
+    
+    const normalizedName = normalizeCompanyName(companyName)
+    console.log('Looking for suggestions:', {
+      originalName: companyName,
+      normalizedName,
+      availableKeys: Object.keys(suggestions),
+      normalizedKeys: Object.keys(suggestions).map(k => normalizeCompanyName(k))
+    })
+    
+    const entry = Object.entries(suggestions).find(([key]) => {
+      const normalizedKey = normalizeCompanyName(key)
+      const matches = normalizedKey === normalizedName
+      console.log('Comparing:', {
+        key,
+        normalizedKey,
+        matches,
+        withName: normalizedName
+      })
+      return matches
+    })
+    
+    if (entry) {
+      console.log('Found suggestions for company:', {
+        company: companyName,
+        suggestionCount: entry[1].length,
+        suggestions: entry[1]
+      })
+    } else {
+      console.log('No suggestions found for company:', {
+        company: companyName,
+        normalizedName,
+        availableCompanies: Object.keys(suggestions)
+      })
+    }
+    
+    return entry ? suggestions[entry[0]] : null
+  }
 
   useEffect(() => {
     loadPostings()
@@ -88,12 +151,13 @@ export const JobPostings = () => {
     if (!newPosting.rawText) return
     
     try {
-      const prompt = `Extract the company name and job title from this job posting. Return as JSON with "company" and "title" fields.
-
-Job Posting:
-${newPosting.rawText}`
-
-      const extracted = await callAnthropicAPI(prompt)
+      const prompt = extractJobInfoPrompt(newPosting.rawText)
+      const response = await callAnthropicAPI(prompt)
+      const text = typeof response.content === 'string' 
+        ? response.content 
+        : response.content[0]?.text || ''
+      const jsonText = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1)
+      const extracted = JSON.parse(jsonText) as ExtractedData
       
       // Use extracted values as defaults if fields are empty
       const company = newPosting.company || extracted.company
@@ -120,9 +184,18 @@ ${newPosting.rawText}`
   }
 
   const handleGenerate = async () => {
-    if (selectedPosting) {
-      await generateResume(selectedPosting)
-      handleNext()
+    if (!selectedPosting || !resume) {
+      console.error('Missing required data:', { hasPosting: !!selectedPosting, hasResume: !!resume })
+      return
+    }
+    
+    try {
+      console.log('Starting resume generation...')
+      await generateResume(selectedPosting, resume)
+      console.log('Resume generated, generating suggestions...')
+      await generateSuggestions(selectedPosting)
+    } catch (error) {
+      console.error('Failed to generate:', error)
     }
   }
 
@@ -154,49 +227,109 @@ ${newPosting.rawText}`
   }
 
   const renderResume = () => {
-    if (!selectedPosting?.generatedResume || !resume) return null
+    console.log('Rendering resume with posting:', selectedPosting);
+    if (!selectedPosting?.generatedResume || !resume) {
+      console.log('Missing data:', {
+        hasPosting: !!selectedPosting,
+        hasGeneratedResume: !!selectedPosting?.generatedResume,
+        hasResume: !!resume
+      });
+      return null;
+    }
 
-    const [overview, closing] = selectedPosting.generatedResume.split('\n\n')
+    // Split resume into sections
+    const sections = selectedPosting.generatedResume.split(/\n\s*\n/)
+    const overview = sections[0] || ''
+    const summary = sections[1] || ''
+    const remaining = sections.slice(2).join('\n\n')
 
     return (
-      <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
+      <Box sx={{ height: '100%' }}>
         <Typography variant="h4" gutterBottom>{resume.personalInfo.name}</Typography>
         <Typography paragraph>{resume.personalInfo.address}</Typography>
 
-        <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>Overview</Typography>
+        {/* Overview Section */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Typography variant="h5">Overview</Typography>
+          {selectedPosting?.suggestions ? (
+            <SuggestionBadge 
+              suggestions={selectedPosting.suggestions.overview}
+              onApply={(feedback, acceptedSuggestions) => {
+                console.log('Applying suggestions to overview:', {feedback, acceptedSuggestions})
+                regenerateSection(selectedPosting, 'overview', null, feedback, acceptedSuggestions)
+              }}
+            />
+          ) : null}
+        </Box>
         <Typography paragraph>{overview}</Typography>
 
-        <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>Experience</Typography>
-        {resume.experience.map((job, i) => (
-          <Box key={i} sx={{ mb: 2 }}>
-            <Typography variant="h6">{job.company}</Typography>
-            {job.positions.map((pos, j) => (
-              <Typography key={j} variant="subtitle1">
-                {pos.title} ({pos.startDate} - {pos.endDate})
-              </Typography>
-            ))}
-            <Typography paragraph>{job.description}</Typography>
-            <List dense>
-              {job.accomplishments.map((acc, k) => (
-                <ListItem key={k}>
-                  <ListItemText primary={`• ${acc}`} />
-                </ListItem>
+        {/* Experience Section */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Typography variant="h5">Experience</Typography>
+        </Box>
+        {resume.experience.map((job, i) => {
+          console.log('\nProcessing job:', job.company)
+          console.log('Available suggestions:', selectedPosting?.suggestions?.experience)
+          const companySuggestions = findCompanySuggestions(job.company, selectedPosting?.suggestions?.experience)
+          console.log('Final suggestion result:', {
+            company: job.company,
+            hasSuggestions: !!companySuggestions,
+            suggestionCount: companySuggestions?.length
+          })
+          return (
+            <Box key={i} sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="h6">{job.company}</Typography>
+                {companySuggestions && (
+                  <SuggestionBadge 
+                    suggestions={companySuggestions}
+                    onApply={(feedback, acceptedSuggestions) => {
+                      regenerateSection(selectedPosting, 'experience', job.company, feedback, acceptedSuggestions)
+                    }}
+                  />
+                )}
+              </Box>
+              {job.positions.map((pos, j) => (
+                <Typography key={j} variant="subtitle1">
+                  {pos.title} ({pos.startDate} - {pos.endDate})
+                </Typography>
               ))}
-            </List>
-          </Box>
-        ))}
+              <Typography paragraph>{job.description}</Typography>
+              <List dense>
+                {job.accomplishments.map((acc, k) => (
+                  <ListItem key={k}>
+                    <ListItemText primary={`• ${acc}`} />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )
+        })}
 
-        <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>Open Source Projects</Typography>
+        {/* Open Source Section */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Typography variant="h5">Open Source Projects</Typography>
+        </Box>
         {resume.projects.map((project, i) => (
-          <Box key={i} sx={{ mb: 2 }}>
-            <Typography variant="h6">
-              {project.name}
-              {project.url && (
-                <Link href={project.url} target="_blank" sx={{ ml: 1 }}>
-                  {project.url}
-                </Link>
+          <Box key={i} sx={{ mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="h6">
+                {project.name}
+                {project.url && (
+                  <Link href={project.url} target="_blank" sx={{ ml: 1 }}>
+                    {project.url}
+                  </Link>
+                )}
+              </Typography>
+              {selectedPosting?.suggestions?.openSource[project.name] && (
+                <SuggestionBadge 
+                  suggestions={selectedPosting.suggestions.openSource[project.name]}
+                  onApply={(feedback, acceptedSuggestions) => {
+                    regenerateSection(selectedPosting, 'openSource', project.name, feedback, acceptedSuggestions)
+                  }}
+                />
               )}
-            </Typography>
+            </Box>
             <Typography paragraph>{project.description}</Typography>
             <Typography variant="body2" color="text.secondary">
               Technologies: {project.technologies.join(', ')}
@@ -204,22 +337,97 @@ ${newPosting.rawText}`
           </Box>
         ))}
 
-        <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>Patents</Typography>
-        <List dense>
-          {resume.patents.map((patent, i) => (
-            <ListItem key={i}>
-              <ListItemText
-                primary={patent.title}
-                secondary={`Patent #${patent.number}`}
-              />
-            </ListItem>
-          ))}
-        </List>
-
-        <Typography variant="h5" gutterBottom sx={{ mt: 3 }}>Closing</Typography>
-        <Typography paragraph>{closing}</Typography>
-      </Paper>
+        {/* Summary Section (moved to end) */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, mt: 4 }}>
+          <Typography variant="h5">Summary</Typography>
+          {selectedPosting?.suggestions ? (
+            <SuggestionBadge 
+              suggestions={selectedPosting.suggestions.summary}
+              onApply={(feedback, acceptedSuggestions) => {
+                regenerateSection(selectedPosting, 'summary', null, feedback, acceptedSuggestions)
+              }}
+            />
+          ) : null}
+        </Box>
+        <Typography paragraph>{summary}</Typography>
+      </Box>
     )
+  }
+
+  const getStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              multiline
+              rows={10}
+              label="Job Description"
+              value={selectedPosting?.rawText || newPosting.rawText}
+              onChange={(e) => {
+                if (selectedPosting) {
+                  handleUpdateRawText(e.target.value)
+                } else {
+                  setNewPosting({ ...newPosting, rawText: e.target.value })
+                }
+              }}
+            />
+          </Box>
+        )
+      case 1:
+        return (
+          <Box sx={{ mt: 2 }}>
+            {selectedPosting?.analysis && (
+              <JobRequirements
+                analysis={selectedPosting.analysis}
+                onUpdateRequirements={(type, requirements) => {
+                  if (selectedPosting) {
+                    updateRequirements(selectedPosting, type, requirements)
+                  }
+                }}
+                onUpdateSuccessCriteria={(criteria) => {
+                  if (selectedPosting) {
+                    updateSuccessCriteria(selectedPosting, criteria)
+                  }
+                }}
+                isEditable
+              />
+            )}
+          </Box>
+        )
+      case 2:
+        return (
+          <Box sx={{ mt: 2 }}>
+            <SplitView
+              leftTitle="Job Requirements"
+              rightTitle="Generated Resume"
+              leftContent={
+                <JobRequirements
+                  analysis={selectedPosting?.analysis || null}
+                  isEditable={false}
+                />
+              }
+              rightContent={renderResume()}
+              leftWidth={40}
+            />
+          </Box>
+        )
+      case 3:
+        return (
+          <Box sx={{ mt: 2 }}>
+            {pdfUrl ? (
+              <Link href={pdfUrl} target="_blank" rel="noopener">
+                Download PDF
+              </Link>
+            ) : (
+              <Typography>Click Export to generate PDF</Typography>
+            )}
+          </Box>
+        )
+      default:
+        return null
+    }
   }
 
   const renderStep = () => {
@@ -279,8 +487,10 @@ ${newPosting.rawText}`
                   key={posting.id}
                   selected={selectedPosting?.id === posting.id}
                   onClick={() => {
-                    setSelectedPosting(posting)
-                    setActiveStep(posting.analysis ? 2 : 1)
+                    console.log('Selected posting:', posting);
+                    console.log('Setting active step to:', posting.analysis ? 2 : 1);
+                    setSelectedPosting(posting);
+                    setActiveStep(posting.generatedResume ? 3 : (posting.analysis ? 2 : 1));
                   }}
                 >
                   <ListItemText
@@ -323,42 +533,72 @@ ${newPosting.rawText}`
             {selectedPosting?.analysis && (
               <>
                 <Paper elevation={1} sx={{ p: 3, mb: 3 }}>
-                  <Typography variant="h6" gutterBottom>Analysis</Typography>
-                  <Typography variant="subtitle1">Role Description</Typography>
-                  <Typography paragraph>{selectedPosting.analysis.roleDescription}</Typography>
+                  <Typography variant="h6" gutterBottom>Job Requirements Analysis</Typography>
                   
-                  <Typography variant="subtitle1">Company Description</Typography>
-                  <Typography paragraph>{selectedPosting.analysis.companyDescription}</Typography>
-                  
-                  <Typography variant="h6" gutterBottom>Required Skills</Typography>
-                  <EditableList
-                    items={selectedPosting.analysis.requiredSkills}
-                    onChange={(items) => updateRequirements(selectedPosting, 'required', items)}
-                    title="required skill"
-                  />
+                  <Box sx={{ mb: 4 }}>
+                    <Typography variant="subtitle1">Role Description</Typography>
+                    <Typography paragraph>{selectedPosting.analysis.roleDescription}</Typography>
+                    
+                    <Typography variant="subtitle1">Company Description</Typography>
+                    <Typography paragraph>{selectedPosting.analysis.companyDescription}</Typography>
+                  </Box>
 
-                  <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>Optional Skills</Typography>
-                  <EditableList
-                    items={selectedPosting.analysis.optionalSkills}
-                    onChange={(items) => updateRequirements(selectedPosting, 'optional', items)}
-                    title="optional skill"
-                  />
+                  <Box sx={{ display: 'flex', gap: 4 }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" gutterBottom>Required Skills</Typography>
+                      <EditableList
+                        items={selectedPosting.analysis.requiredSkills}
+                        onChange={(items) => updateRequirements(selectedPosting, 'required', items)}
+                        title="required skill"
+                      />
+                    </Box>
 
-                  <Typography variant="h6" sx={{ mt: 3 }}>Success Criteria</Typography>
-                  <EditableList
-                    items={selectedPosting.analysis.successCriteria}
-                    title="success criteria"
-                    onChange={(items) => updateSuccessCriteria(selectedPosting, items)}
-                  />
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" gutterBottom>Optional Skills</Typography>
+                      <EditableList
+                        items={selectedPosting.analysis.optionalSkills}
+                        onChange={(items) => updateRequirements(selectedPosting, 'optional', items)}
+                        title="optional skill"
+                      />
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ mt: 3 }}>
+                    <Typography variant="h6">Success Criteria</Typography>
+                    <EditableList
+                      items={selectedPosting.analysis.successCriteria}
+                      title="success criteria"
+                      onChange={(items) => updateSuccessCriteria(selectedPosting, items)}
+                    />
+                  </Box>
                 </Paper>
 
-                <Button
-                  variant="contained"
-                  onClick={handleGenerate}
-                  disabled={!selectedPosting.analysis}
-                >
-                  Generate Resume
-                </Button>
+                {selectedPosting.generatedResume ? (
+                  <>
+                    {renderResume()}
+                    <Button
+                      variant="contained"
+                      onClick={handleGenerate}
+                      sx={{ mr: 2 }}
+                    >
+                      Regenerate Resume
+                    </Button>
+                    <Button
+                      variant="contained"
+                      color="secondary"
+                      onClick={() => setActiveStep(3)}
+                    >
+                      Proceed to Export
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="contained"
+                    onClick={handleGenerate}
+                  >
+                    Generate Resume
+                  </Button>
+                )}
               </>
             )}
           </Box>
@@ -375,8 +615,13 @@ ${newPosting.rawText}`
               <Box p={4}>
                 <Typography color="error">{postingError || resumeError}</Typography>
               </Box>
-            ) : selectedPosting?.generatedResume && (
+            ) : selectedPosting?.generatedResume ? (
               <>
+                {console.log('About to render resume with:', {
+                  selectedPosting,
+                  resume,
+                  generatedResume: selectedPosting.generatedResume
+                })}
                 {renderResume()}
 
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -399,6 +644,17 @@ ${newPosting.rawText}`
                     </Button>
                   )}
                 </Box>
+              </>
+            ) : (
+              <>
+                {console.log('No resume to render:', {
+                  hasPosting: !!selectedPosting,
+                  hasGeneratedResume: !!selectedPosting?.generatedResume,
+                  hasResume: !!resume
+                })}
+                <Typography>
+                  No generated resume available
+                </Typography>
               </>
             )}
           </Box>
@@ -425,11 +681,86 @@ ${newPosting.rawText}`
   return (
     <Box p={4}>
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
+        {steps.map((label, index) => {
+          const isClickable = index === 0 || 
+            (index === 1 && selectedPosting) ||
+            (index === 2 && selectedPosting?.analysis) ||
+            (index === 3 && selectedPosting?.generatedResume)
+
+          return (
+            <Step 
+              key={label} 
+              completed={index < activeStep}
+              onClick={() => {
+                if (isClickable) {
+                  setActiveStep(index)
+                }
+              }}
+              sx={{ 
+                cursor: isClickable ? 'pointer' : 'not-allowed',
+                '& .MuiStepLabel-root': {
+                  '&:hover': isClickable ? {
+                    backgroundColor: 'action.hover',
+                    borderRadius: 1,
+                    transition: '0.2s'
+                  } : {},
+                },
+                '& .MuiStepLabel-label': {
+                  // Current step
+                  ...(index === activeStep && {
+                    color: 'primary.main',
+                    fontWeight: 'bold',
+                    fontSize: '1.1rem'
+                  }),
+                  // Completed steps
+                  ...(index < activeStep && {
+                    color: 'success.main'
+                  }),
+                  // Future steps
+                  ...(index > activeStep && {
+                    color: isClickable ? 'text.primary' : 'text.disabled'
+                  })
+                },
+                '& .MuiStepIcon-root': {
+                  // Current step
+                  ...(index === activeStep && {
+                    fontSize: '2rem',
+                    color: 'primary.main'
+                  }),
+                  // Completed steps
+                  ...(index < activeStep && {
+                    color: 'success.main'
+                  }),
+                  // Future steps
+                  ...(index > activeStep && {
+                    color: isClickable ? 'primary.light' : 'action.disabled'
+                  })
+                }
+              }}
+            >
+              <StepLabel>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {label}
+                  {index === activeStep && (
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        backgroundColor: 'primary.main',
+                        color: 'primary.contrastText',
+                        px: 1,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      Current
+                    </Typography>
+                  )}
+                </Box>
+              </StepLabel>
+            </Step>
+          )
+        })}
       </Stepper>
 
       {renderStep()}

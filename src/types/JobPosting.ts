@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import type { SectionSuggestions } from './JobPostEditor'
+
 export interface JobAnalysis {
   title: string
   roleDescription: string
@@ -31,4 +33,5 @@ export interface JobPosting {
   rawText: string
   analysis: JobAnalysis | null
   generatedResume: string | null
+  suggestions?: SectionSuggestions
 } 
