@@ -62,7 +62,15 @@ For each experience item, succinctly describe that experience independently of t
 to and highlight portions of the experience that demonstrate the user's suitability as a candidate for the role.
 
 Job postings are all stored in Github at `/job-postings/yyyy-mm-dd-{company}-{title}.xml`. Exported resumes are
-stored at `/job-postings/yyyy-mm-dd-{company}-{title}.pdf`
+stored at `/job-postings/yyyy-mm-dd-{company}-{title}.pdf`. 
+
+The XML file for the job posting includes:
+- The job posting info
+- All inferred information about the job posting
+- The info needed to generate the Resume
+
+Upon clicking "Generate", after the resume is fully generated, the XML is updated to include all generated bits
+(though not stored in XML as it's displayed). Subsequent loads should load from the XML rather than re-generate.
 
 Upon clicking the "Export" button on a job posting, it renders a plain HTML layout and uses jsPDF to convert it
 to PDF (which is then saved to Github). The exported view should be identical to the generated view in every way possible.
@@ -93,5 +101,7 @@ to PDF (which is then saved to Github). The exported view should be identical to
 - Don't use Node.js APIs like Buffer, this runs in the browser.
 - Share code across modules whenever approprite
 - Always run `npx tsc --noEmit` before finishing
+- Always store XML as human-readable & properly indented
+- Never rename variables unless requested
 
 

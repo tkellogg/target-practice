@@ -314,18 +314,18 @@ ${newPosting.rawText}`
                   <Typography variant="subtitle1">Company Description</Typography>
                   <Typography paragraph>{selectedPosting.analysis.companyDescription}</Typography>
                   
-                  <Typography variant="h6" sx={{ mt: 3 }}>Required Skills</Typography>
+                  <Typography variant="h6" gutterBottom>Required Skills</Typography>
                   <EditableList
-                    items={selectedPosting.analysis.requirements.required}
-                    title="required skill"
+                    items={selectedPosting.analysis.requiredSkills}
                     onChange={(items) => updateRequirements(selectedPosting, 'required', items)}
+                    title="required skill"
                   />
 
-                  <Typography variant="h6" sx={{ mt: 3 }}>Optional Skills</Typography>
+                  <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>Optional Skills</Typography>
                   <EditableList
-                    items={selectedPosting.analysis.requirements.optional}
-                    title="optional skill"
+                    items={selectedPosting.analysis.optionalSkills}
                     onChange={(items) => updateRequirements(selectedPosting, 'optional', items)}
+                    title="optional skill"
                   />
 
                   <Typography variant="h6" sx={{ mt: 3 }}>Success Criteria</Typography>

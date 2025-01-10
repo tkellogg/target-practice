@@ -90,75 +90,123 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
   const doc = new jsPDF()
   const margin = 20
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
   const lineHeight = 7
+  const bottomMargin = pageHeight - margin
+
+  // Helper to check if we need a new page
+  const checkNewPage = (currentY: number, neededSpace: number = lineHeight) => {
+    if (currentY + neededSpace > bottomMargin) {
+      doc.addPage()
+      return margin
+    }
+    return currentY
+  }
 
   // Helper to add wrapped text
   const addWrappedText = (text: string, y: number, fontSize: number = 12) => {
     doc.setFontSize(fontSize)
     const lines = doc.splitTextToSize(text, pageWidth - 2 * margin)
+    const totalHeight = lines.length * lineHeight
+    
+    // Check if we need a new page
+    y = checkNewPage(y, totalHeight)
+    
     doc.text(lines, margin, y)
-    return y + lines.length * lineHeight
+    return y + totalHeight
   }
 
   // Helper to add a section header
   const addSectionHeader = (text: string, y: number) => {
-    doc.setFontSize(14)
+    // Check if we need a new page for the header plus some content
+    y = checkNewPage(y, lineHeight * 3)
+    
+    doc.setFontSize(16)
     doc.setFont('helvetica', 'bold')
-    y = addWrappedText(text, y, 14)
+    doc.text(text, margin, y)
     doc.setFont('helvetica', 'normal')
-    return y + lineHeight
+    return y + lineHeight * 1.5
   }
 
   let y = margin
 
   // Add personal information
-  y = addWrappedText(resume.personalInfo.name, y, 16) + lineHeight
-  y = addWrappedText(resume.personalInfo.address, y) + lineHeight * 2
+  doc.setFontSize(20)
+  doc.setFont('helvetica', 'bold')
+  y = addWrappedText(resume.personalInfo.name, y, 20)
+  doc.setFont('helvetica', 'normal')
+  y = addWrappedText(resume.personalInfo.address, y, 12) + lineHeight
 
-  // Add overview and closing from generated resume
   if (posting.generatedResume) {
     const [overview, closing] = posting.generatedResume.split('\n\n')
     
+    // Overview section
     y = addSectionHeader('Overview', y)
-    y = addWrappedText(overview, y) + lineHeight * 2
+    y = addWrappedText(overview, y) + lineHeight
 
-    // Add experience
+    // Experience section
     y = addSectionHeader('Experience', y)
     for (const job of resume.experience) {
-      y = addWrappedText(job.company, y, 13)
+      y = checkNewPage(y, lineHeight * 4) // Space for company and at least one position
+      
+      // Company name in bold
+      doc.setFont('helvetica', 'bold')
+      y = addWrappedText(job.company, y, 14)
+      doc.setFont('helvetica', 'normal')
+
+      // Positions
       for (const pos of job.positions) {
-        y = addWrappedText(`${pos.title} (${pos.startDate} - ${pos.endDate})`, y, 11)
+        y = checkNewPage(y)
+        y = addWrappedText(`${pos.title} (${pos.startDate} - ${pos.endDate})`, y, 12)
       }
-      y = addWrappedText(job.description, y) + lineHeight
+
+      // Job description
+      y = checkNewPage(y)
+      y = addWrappedText(job.description, y) + lineHeight/2
+
+      // Accomplishments
       for (const acc of job.accomplishments) {
-        y = addWrappedText(`• ${acc}`, y) + lineHeight
+        y = checkNewPage(y)
+        y = addWrappedText(`• ${acc}`, y) + lineHeight/2
       }
       y += lineHeight
     }
 
-    // Add projects
-    y = addSectionHeader('Open Source Projects', y)
-    for (const project of resume.projects) {
-      y = addWrappedText(project.name, y, 13)
-      if (project.url) {
-        doc.setTextColor(0, 0, 255)
-        y = addWrappedText(project.url, y, 10)
-        doc.setTextColor(0)
+    // Projects section
+    if (resume.projects.length > 0) {
+      y = addSectionHeader('Open Source Projects', y)
+      for (const project of resume.projects) {
+        y = checkNewPage(y, lineHeight * 4) // Space for project name and details
+        
+        doc.setFont('helvetica', 'bold')
+        y = addWrappedText(project.name, y, 14)
+        doc.setFont('helvetica', 'normal')
+
+        if (project.url) {
+          y = checkNewPage(y)
+          doc.setTextColor(0, 0, 255)
+          y = addWrappedText(project.url, y, 10)
+          doc.setTextColor(0)
+        }
+
+        y = checkNewPage(y)
+        y = addWrappedText(project.description, y) + lineHeight/2
+        y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, 10) + lineHeight
       }
-      y = addWrappedText(project.description, y) + lineHeight
-      y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, 10) + lineHeight
     }
 
-    // Add patents
-    y = addSectionHeader('Patents', y)
-    for (const patent of resume.patents) {
-      y = addWrappedText(`${patent.title} (Patent #${patent.number})`, y) + lineHeight
+    // Patents section
+    if (resume.patents.length > 0) {
+      y = addSectionHeader('Patents', y)
+      for (const patent of resume.patents) {
+        y = checkNewPage(y)
+        y = addWrappedText(`${patent.title} (Patent #${patent.number})`, y) + lineHeight
+      }
     }
-    y += lineHeight
 
-    // Add closing
+    // Closing section
     y = addSectionHeader('Closing', y)
-    y = addWrappedText(closing, y) + lineHeight
+    y = addWrappedText(closing, y)
   }
 
   // Convert PDF to base64
@@ -167,7 +215,9 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
 
   // Save to GitHub
   const [owner, repo] = selectedRepo.split('/')
-  const path = `job-postings/${posting.id}.pdf`
+  const date = new Date().toISOString().split('T')[0] // Format: yyyy-mm-dd
+  const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  const path = `job-postings/${date}-${fileSlug}.pdf`
 
   try {
     // Check if file exists

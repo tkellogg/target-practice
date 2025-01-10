@@ -31,8 +31,9 @@ function formatId(company: string, title: string): string {
   return `${date}-${slug}`
 }
 
-function utf8ToBase64(str: string): string {
-  return btoa(unescape(encodeURIComponent(str)))
+// Helper to get file path for a posting
+function getPostingPath(id: string): string {
+  return `job-postings/${id}.xml`
 }
 
 async function callAnthropicAPI(prompt: string): Promise<any> {
@@ -75,23 +76,21 @@ function createXmlDocument(posting: JobPosting): string {
     analysis.appendChild(createElement('roleDescription', posting.analysis.roleDescription));
     analysis.appendChild(createElement('companyDescription', posting.analysis.companyDescription));
 
-    const requirements = createElement('requirements');
-    const required = createElement('required');
-    posting.analysis.requirements.required.forEach(req => {
-      required.appendChild(createElement('item', req));
+    const requiredSkills = createElement('requiredSkills');
+    posting.analysis.requiredSkills.forEach((skill: string) => {
+      requiredSkills.appendChild(createElement('skill', skill));
     });
-    requirements.appendChild(required);
+    analysis.appendChild(requiredSkills);
 
-    const optional = createElement('optional');
-    posting.analysis.requirements.optional.forEach(req => {
-      optional.appendChild(createElement('item', req));
+    const optionalSkills = createElement('optionalSkills');
+    posting.analysis.optionalSkills.forEach((skill: string) => {
+      optionalSkills.appendChild(createElement('skill', skill));
     });
-    requirements.appendChild(optional);
-    analysis.appendChild(requirements);
+    analysis.appendChild(optionalSkills);
 
     const successCriteria = createElement('successCriteria');
-    posting.analysis.successCriteria.forEach(criteria => {
-      successCriteria.appendChild(createElement('item', criteria));
+    posting.analysis.successCriteria.forEach((criterion: string) => {
+      successCriteria.appendChild(createElement('criterion', criterion));
     });
     analysis.appendChild(successCriteria);
 
@@ -106,84 +105,6 @@ function createXmlDocument(posting: JobPosting): string {
   return '<?xml version="1.0" encoding="UTF-8"?>\n' + serializer.serializeToString(doc);
 }
 
-async function testCreateFile(selectedRepo: string) {
-  const [owner, repo] = selectedRepo.split('/')
-  try {
-    console.log('Testing file creation...')
-    
-    // First ensure the job-postings directory exists
-    try {
-      await octokit.repos.getContent({
-        owner,
-        repo,
-        path: 'job-postings'
-      })
-    } catch (error: any) {
-      if (error.status === 404) {
-        // Directory doesn't exist, create it with a .gitkeep file
-        await octokit.repos.createOrUpdateFileContents({
-          owner,
-          repo,
-          path: 'job-postings/.gitkeep',
-          message: 'Create job-postings directory',
-          content: '',
-          branch: 'main'
-        })
-      } else {
-        throw error
-      }
-    }
-
-    // Now test file creation in the root directory
-    try {
-      const existingFile = await octokit.repos.getContent({
-        owner,
-        repo,
-        path: 'test.txt'
-      })
-      
-      // If we get here, the file exists, so we need its SHA to update it
-      if ('sha' in existingFile.data) {
-        const result = await octokit.repos.createOrUpdateFileContents({
-          owner,
-          repo,
-          path: 'test.txt',
-          message: 'Test file update',
-          content: utf8ToBase64('This is a test file'),
-          sha: existingFile.data.sha,
-          branch: 'main'
-        })
-        console.log('Test file updated successfully:', result)
-        return true
-      }
-    } catch (error: any) {
-      // 404 means file doesn't exist, which is fine
-      if (error.status !== 404) {
-        throw error
-      }
-    }
-
-    // File doesn't exist, create it without SHA
-    const result = await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: 'test.txt',
-      message: 'Test file creation',
-      content: utf8ToBase64('This is a test file'),
-      branch: 'main'
-    })
-    console.log('Test file created successfully:', result)
-    return true
-  } catch (error: any) {
-    console.error('Test file creation failed:', {
-      status: error.status,
-      message: error.message,
-      response: error.response?.data
-    })
-    return false
-  }
-}
-
 export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   postings: [],
   selectedPosting: null,
@@ -194,106 +115,100 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   setSelectedRepo: (repo) => set({ selectedRepo: repo }),
 
   loadPostings: async () => {
-    const { selectedRepo } = get()
-    if (!selectedRepo) {
-      set({ error: 'No repository selected' })
-      return
-    }
+    const selectedRepo = get().selectedRepo
+    if (!selectedRepo) return
 
-    const [owner, repo] = selectedRepo.split('/')
     set({ isLoading: true, error: null })
     try {
+      const [owner, repo] = selectedRepo.split('/')
       const response = await octokit.repos.getContent({
         owner,
         repo,
         path: 'job-postings'
       })
 
-      if (Array.isArray(response.data)) {
-        const postings = await Promise.all(
-          response.data
-            .filter(file => file.name.endsWith('.xml'))
-            .map(async file => {
+      if (!Array.isArray(response.data)) {
+        throw new Error('Invalid response from GitHub')
+      }
+
+      // Only process XML files
+      const xmlFiles = response.data.filter(file => 
+        file.type === 'file' && file.name.endsWith('.xml')
+      )
+
+      const postings = await Promise.all(
+        xmlFiles
+          .map(async file => {
+            try {
               const content = await octokit.repos.getContent({
                 owner,
                 repo,
-                path: `job-postings/${file.name}`
+                path: file.path
               })
-              
-              if ('content' in content.data) {
-                const xmlContent = atob(content.data.content)
-                const parser = new DOMParser()
-                const doc = parser.parseFromString(xmlContent, 'text/xml')
-                
-                const posting: JobPosting = {
-                  id: file.name.replace('.xml', ''),
-                  company: doc.querySelector('company')?.textContent || '',
-                  title: doc.querySelector('title')?.textContent || '',
-                  url: doc.querySelector('url')?.textContent || '',
-                  rawText: doc.querySelector('rawText')?.textContent || '',
-                  analysis: null,
-                  generatedResume: null
-                }
 
-                const analysis = doc.querySelector('analysis')
-                if (analysis) {
-                  posting.analysis = {
-                    title: analysis.querySelector('title')?.textContent || '',
-                    roleDescription: analysis.querySelector('roleDescription')?.textContent || '',
-                    companyDescription: analysis.querySelector('companyDescription')?.textContent || '',
-                    requirements: {
-                      required: Array.from(analysis.querySelectorAll('requirements > required > item')).map(item => item.textContent || ''),
-                      optional: Array.from(analysis.querySelectorAll('requirements > optional > item')).map(item => item.textContent || '')
-                    },
-                    successCriteria: Array.from(analysis.querySelectorAll('successCriteria > item')).map(item => item.textContent || '')
-                  }
-                }
-
-                const resume = doc.querySelector('generatedResume')
-                if (resume) {
-                  posting.generatedResume = resume.textContent
-                }
-
-                return posting
+              if (!('content' in content.data)) {
+                return null
               }
+
+              const xmlContent = atob(content.data.content)
+              const parser = new DOMParser()
+              const doc = parser.parseFromString(xmlContent, 'text/xml')
+
+              const posting: JobPosting = {
+                id: file.name.replace('.xml', ''),
+                company: doc.querySelector('company')?.textContent || '',
+                title: doc.querySelector('title')?.textContent || '',
+                url: doc.querySelector('url')?.textContent || '',
+                rawText: doc.querySelector('rawText')?.textContent || '',
+                analysis: null,
+                generatedResume: null
+              }
+
+              const analysis = doc.querySelector('analysis')
+              if (analysis) {
+                posting.analysis = {
+                  title: analysis.querySelector('title')?.textContent || '',
+                  roleDescription: analysis.querySelector('roleDescription')?.textContent || '',
+                  companyDescription: analysis.querySelector('companyDescription')?.textContent || '',
+                  requiredSkills: Array.from(analysis.querySelectorAll('requiredSkills > skill')).map(skill => skill.textContent || ''),
+                  optionalSkills: Array.from(analysis.querySelectorAll('optionalSkills > skill')).map(skill => skill.textContent || ''),
+                  successCriteria: Array.from(analysis.querySelectorAll('successCriteria > criterion')).map(criterion => criterion.textContent || '')
+                }
+              }
+
+              const resume = doc.querySelector('generatedResume')
+              if (resume) {
+                posting.generatedResume = resume.textContent
+              }
+
+              return posting
+            } catch (error) {
+              console.error('Failed to parse posting:', error)
               return null
-            })
-        )
-        set({ postings: postings.filter((p): p is JobPosting => p !== null), isLoading: false })
-      }
-    } catch (error: any) {
-      // If the directory doesn't exist yet, that's fine - just return empty list
-      if (error.status === 404) {
-        set({ postings: [], isLoading: false })
-        return
-      }
-      
-      console.error('Failed to load job postings:', error)
-      set({ error: 'Failed to load job postings', isLoading: false })
+            }
+          })
+      )
+
+      set({ 
+        postings: postings.filter((p): p is JobPosting => p !== null),
+        isLoading: false 
+      })
+    } catch (error) {
+      console.error('Failed to load postings:', error)
+      set({ error: 'Failed to load postings', isLoading: false })
     }
   },
 
   createPosting: async (company: string, title: string, url: string, rawText: string) => {
-    const { selectedRepo } = get()
-    if (!selectedRepo) {
-      set({ error: 'No repository selected' })
-      return
-    }
+    const selectedRepo = get().selectedRepo
+    if (!selectedRepo) return
 
-    const [owner, repo] = selectedRepo.split('/')
     set({ isLoading: true, error: null })
     try {
-      // First test if we can create a simple file
-      const testSuccess = await testCreateFile(selectedRepo)
-      if (!testSuccess) {
-        throw new Error('Unable to create test file - please check GitHub permissions')
-      }
-
-      console.log('Creating posting with:', { company, title, url, rawTextLength: rawText.length })
-      
       const id = formatId(company, title)
-      console.log('Generated ID:', id)
-      
+      const path = getPostingPath(id)
+      const [owner, repo] = selectedRepo.split('/')
+
       const posting: JobPosting = {
         id,
         company,
@@ -304,94 +219,64 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         generatedResume: null
       }
 
-      const xml = createXmlDocument(posting)
-      console.log('Generated XML length:', xml.length)
-      console.log('XML:', xml)
+      const xmlContent = createXmlDocument(posting)
 
-      // Convert string to base64 with proper UTF-8 encoding
-      const base64Content = utf8ToBase64(xml)
-      console.log('Base64 content length:', base64Content.length)
+      await octokit.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path,
+        message: `Add job posting for ${company} - ${title}`,
+        content: btoa(xmlContent),
+        branch: 'main'
+      })
 
-      try {
-        console.log('Creating file:', {
-          path: `job-postings/${id}.xml`,
-          contentLength: base64Content.length
-        })
-        
-        const result = await octokit.repos.createOrUpdateFileContents({
-          owner,
-          repo,
-          path: `job-postings/${id}.xml`,
-          message: `Create job posting for ${company} - ${title}`,
-          content: base64Content,
-          branch: 'main'
-        })
-        
-        console.log('GitHub API response:', result)
-      } catch (error: any) {
-        console.error('GitHub API error:', {
-          status: error.status,
-          message: error.message,
-          response: error.response?.data
-        })
-        
-        if (error.status === 404) {
-          throw new Error(`Path not found: job-postings/${id}.xml - Does the job-postings directory exist?`)
-        } else if (error.status === 403) {
-          throw new Error('Permission denied. Please check your GitHub token has the correct permissions.')
-        } else {
-          throw new Error(`GitHub API error: ${error.message}`)
-        }
-      }
-
-      set(state => ({ 
-        postings: [...state.postings, posting],
-        selectedPosting: posting,
-        isLoading: false 
-      }))
+      const postings = [...get().postings, posting]
+      set({ postings, selectedPosting: posting, isLoading: false })
     } catch (error) {
-      console.error('Failed to create job posting:', error)
-      set({ error: error instanceof Error ? error.message : 'Failed to create job posting', isLoading: false })
+      console.error('Failed to create posting:', error)
+      set({ error: 'Failed to create posting', isLoading: false })
     }
   },
 
   updatePosting: async (posting: JobPosting) => {
-    const { selectedRepo } = get()
-    if (!selectedRepo) {
-      set({ error: 'No repository selected' })
-      return
-    }
+    const selectedRepo = get().selectedRepo
+    if (!selectedRepo) return
 
-    const [owner, repo] = selectedRepo.split('/')
     set({ isLoading: true, error: null })
     try {
-      const xml = createXmlDocument(posting)
+      const path = getPostingPath(posting.id)
+      const [owner, repo] = selectedRepo.split('/')
 
-      const currentFile = await octokit.repos.getContent({
+      // Get the current file to get its SHA
+      const existingFile = await octokit.repos.getContent({
         owner,
         repo,
-        path: `job-postings/${posting.id}.xml`
+        path
       })
 
-      if ('sha' in currentFile.data) {
-        await octokit.repos.createOrUpdateFileContents({
-          owner,
-          repo,
-          path: `job-postings/${posting.id}.xml`,
-          message: `Update job posting for ${posting.company} - ${posting.title}`,
-          content: utf8ToBase64(xml),
-          sha: currentFile.data.sha
-        })
+      if (!('sha' in existingFile.data)) {
+        throw new Error('Invalid response from GitHub')
       }
 
-      set(state => ({
-        postings: state.postings.map(p => p.id === posting.id ? posting : p),
-        selectedPosting: posting,
-        isLoading: false
-      }))
+      const xmlContent = createXmlDocument(posting)
+
+      await octokit.repos.createOrUpdateFileContents({
+        owner,
+        repo,
+        path,
+        message: `Update job posting for ${posting.company} - ${posting.title}`,
+        content: btoa(xmlContent),
+        sha: existingFile.data.sha,
+        branch: 'main'
+      })
+
+      const postings = get().postings.map(p => 
+        p.id === posting.id ? posting : p
+      )
+      set({ postings, selectedPosting: posting, isLoading: false })
     } catch (error) {
-      console.error('Failed to update job posting:', error)
-      set({ error: 'Failed to update job posting', isLoading: false })
+      console.error('Failed to update posting:', error)
+      set({ error: 'Failed to update posting', isLoading: false })
     }
   },
 
@@ -474,10 +359,7 @@ Format the response as JSON with "overview" and "closing" fields.`
       ...posting,
       analysis: {
         ...posting.analysis,
-        requirements: {
-          ...posting.analysis.requirements,
-          [type]: requirements
-        }
+        [type === 'required' ? 'requiredSkills' : 'optionalSkills']: requirements
       }
     }
     await get().updatePosting(updatedPosting)

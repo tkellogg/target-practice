@@ -2,10 +2,8 @@ export interface JobAnalysis {
   title: string
   roleDescription: string
   companyDescription: string
-  requirements: {
-    required: string[]
-    optional: string[]
-  }
+  requiredSkills: string[]
+  optionalSkills: string[]
   successCriteria: string[]
 }
 
