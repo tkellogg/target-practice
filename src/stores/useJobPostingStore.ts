@@ -28,7 +28,6 @@ import {
   generateSuggestionsPrompt,
   regenerateSectionPrompt
 } from '../utils/prompts'
-import { useResumeStore } from './useResumeStore'
 
 interface JobPostingStore {
   postings: JobPosting[]
@@ -642,21 +641,107 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         throw new Error('No generated resume to analyze')
       }
 
-      // Get companies from the Resume object
-      const { resume } = useResumeStore.getState()
-      if (!resume) {
-        throw new Error('Resume not loaded')
+      console.log('\nStarting company name extraction from resume:', posting.generatedResume)
+
+      // Split into sections by known headings
+      const sections = posting.generatedResume
+        .split(/(?=Experience|Open Source Projects|Summary|Overview)/)
+        .map(s => s.trim())
+        .filter(Boolean)
+
+      console.log('\nFound sections:', sections.map(s => s.split('\n')[0]))
+
+      // Try to find Experience by heading
+      let experienceSection = sections.find(section => 
+        section.startsWith('Experience') && 
+        !section.includes('Open Source')
+      )
+
+      // Fallback if no Experience heading found
+      if (!experienceSection) {
+        console.log('No explicit "Experience" heading found, attempting fallback search.')
+        // Attempt a more general find of any large block containing 'experience'
+        const experienceMatch = /(.*experience.*)/is.exec(posting.generatedResume)
+        if (experienceMatch) {
+          experienceSection = experienceMatch[1].trim()
+        }
       }
 
-      // Extract company names from experience items
-      const companyNames = resume.experience.map(exp => exp.company)
-      console.log('\nExtracted companies from Resume:', companyNames)
+      if (!experienceSection) {
+        console.log('No experience section found in sections:', sections)
+        throw new Error('No experience section found in resume')
+      }
 
-      // Extract project names from Resume
-      const projectNames = resume.projects.map(proj => proj.name)
-      console.log('\nExtracted project names from Resume:', projectNames)
+      console.log('\nAnalyzing experience section:', experienceSection)
 
-      const { prompt, companyMap } = generateSuggestionsPrompt(posting, companyNames)
+      // Primary regex: "CompanyName (Role, Year-Year)"
+      const companyRegex = /^([^(]+)\s*\([^)]+\)/gm
+      const companyNames: string[] = []
+      let match
+
+      while ((match = companyRegex.exec(experienceSection)) !== null) {
+        const company = match[1].trim()
+        console.log('Found company (companyRegex):', company)
+        companyNames.push(company)
+      }
+
+      // Fallback: If no matches, try a simpler pattern like "worked at X" or "at X"
+      if (companyNames.length === 0) {
+        console.log('No matches in parentheses format, now attempting fallback parse for "at XXX".')
+        const fallbackRegex = /\b(?:at|worked at)\s+([A-Z][^\s,.]+(?:\s[A-Z][^\s,.]+){0,3})\b/gi
+        // Explanation of pattern:
+        //  - We look for "at" or "worked at"
+        //  - Then capture up to 4 capitalized word-forms (e.g., "Acme," "Acme Corp," "Acme Corporation LLC," etc.)
+        while ((match = fallbackRegex.exec(experienceSection)) !== null) {
+          const company = match[1].trim()
+          console.log('Found company (fallbackRegex):', company)
+          companyNames.push(company)
+        }
+      }
+
+      console.log('\nExtracted company names from resume:', companyNames)
+
+      // Merge the posting’s explicit company into the array if it’s missing.
+      const mainCompany = posting.company.trim()
+      if (mainCompany && !companyNames.includes(mainCompany)) {
+          console.log('[Fallback] Adding posting.company to companyNames:', mainCompany)
+          companyNames.push(mainCompany)
+      }
+
+      console.log('\nFinal merged company list:', companyNames)
+
+      if (companyNames.length === 0) {
+          console.log('Experience section content:', experienceSection)
+          throw new Error('No company names found in experience section')
+      }
+
+      // Validate company names are strings and not empty
+      const validCompanyNames = companyNames
+        .map(name => String(name).trim())
+        .filter(Boolean)
+
+      if (validCompanyNames.length === 0) {
+        throw new Error('No valid company names found')
+      }
+
+      // Extract project names from open source section
+      const openSourceSection = sections.find(section => 
+        section.startsWith('Open Source Projects')
+      )
+      
+      const projectNames = openSourceSection
+        ? Array.from(openSourceSection.matchAll(/^([^(\n]+)(?:\s*\(|$)/gm))
+            .map(match => {
+              const name = match[1].trim()
+              console.log('Found project:', name)
+              return name
+            })
+            .filter(Boolean)
+        : []
+
+      console.log('\nExtracted project names:', projectNames)
+
+      const { prompt, companyMap } = generateSuggestionsPrompt(posting, validCompanyNames)
       const response = await callAnthropicAPI(prompt)
       
       // Extract JSON from response
