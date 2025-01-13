@@ -20,6 +20,9 @@ import { useResumeStore } from '../stores/useResumeStore'
 import { EditableText } from '../components/EditableText'
 import { MenuBar } from '../components/MenuBar'
 import { Resume, Experience, Position } from '../types/Resume'
+import ChatIcon from '@mui/icons-material/Chat'
+import { ExperienceConversation } from '../components/ExperienceConversation'
+import { useExperienceConversationStore } from '../stores/useExperienceConversationStore'
 
 function isPosition(obj: any): obj is Position {
   return obj && 
@@ -41,6 +44,7 @@ function isExperience(obj: any): obj is Experience {
 
 export const Editor = () => {
   const { resume, isLoading, error, updateResume } = useResumeStore()
+  const { isOpen, currentExperience } = useExperienceConversationStore();
 
   const handleUpdate = (updater: (resume: Resume) => Resume) => {
     if (resume) {
@@ -60,7 +64,8 @@ export const Editor = () => {
       }],
       skills: ['New Skill'],
       description: 'Description of role and responsibilities',
-      accomplishments: ['First accomplishment']
+      accomplishments: ['First accomplishment'],
+      anecdotes: []
     }
 
     handleUpdate(r => ({
@@ -326,6 +331,40 @@ export const Editor = () => {
                 </li>
               ))}
             </ul>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+              <Typography variant="subtitle2">Anecdotes:</Typography>
+              <IconButton 
+                onClick={() => {
+                  useExperienceConversationStore.getState().setExperience(job);
+                  useExperienceConversationStore.getState().setOpen(true);
+                }} 
+                size="small" 
+                sx={{ ml: 1 }}
+              >
+                <ChatIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            {job.anecdotes?.map((anecdote, i) => (
+              <Box key={anecdote.id} sx={{ mt: 1 }}>
+                <EditableText
+                  value={anecdote.content}
+                  onChange={(value) => handleUpdate(r => ({
+                    ...r,
+                    experience: r.experience.map((j, jobIndex) => 
+                      jobIndex === index ? {
+                        ...j,
+                        anecdotes: j.anecdotes?.map((a, anecdoteIndex) =>
+                          anecdoteIndex === i ? { ...a, content: value } : a
+                        )
+                      } : j
+                    )
+                  }))}
+                  variant="body2"
+                  multiline
+                />
+              </Box>
+            ))}
           </Box>
         ))}
 
@@ -406,6 +445,24 @@ export const Editor = () => {
           </Box>
         ))}
       </Box>
+      {isOpen && currentExperience && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            bgcolor: 'background.paper',
+            zIndex: 1200
+          }}
+        >
+          <ExperienceConversation
+            experience={currentExperience}
+            onClose={() => useExperienceConversationStore.getState().setOpen(false)}
+          />
+        </Box>
+      )}
     </>
   )
 } 

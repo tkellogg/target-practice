@@ -27,6 +27,20 @@ export interface Experience {
   description: string
   accomplishments: string[]
   dates: string
+  anecdotes?: Anecdote[]
+}
+
+export interface Anecdote {
+  id: string
+  content: string
+  timestamp: string
+  conversationContext?: {
+    role: string
+    messages: Array<{
+      role: 'user' | 'assistant'
+      content: string
+    }>
+  }
 }
 
 export interface Project {

@@ -11,17 +11,18 @@
 - Always use `claude-3-5-sonnet-latest` for LLMs.
 - Always make the LLM generate JSON only, it's easier to parse.
 - Use OAuth to authenticate with github using a static token, no auth workflow.
-- Only one server running in dev.
 - Do as much as possible in the frontend. Avoid adding code to the backend at all cost.
 - Use built-in DOM APIs to create XML
 - The repo name is selected by the user via the drop down
 - The repo drop down is always populated from github, and only shows non-fork repos that aren't in an org
 - Anthropic API requests all go on the backend
 - frontend is on port 3001, backend is on 3002
+- Don't use Node.js APIs like Buffer, this runs in the browser.
+- Use tsconfig.server.json for server.ts, for all other files always use tsconfig.json
+- Use `tsc --noEmit && node --loader ts-node/esm` to launch the server
 - NEVER change my .env file
 - For LLM responses when you expect JSON, always trim everything before '{' and afer '}'
 - For editable text, always use EditableText
-- Don't use Node.js APIs like Buffer, this runs in the browser.
 - Share code across modules whenever approprite
 - Always run `npx tsc --noEmit` before finishing
 - Always store XML as human-readable & properly indented
