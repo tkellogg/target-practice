@@ -19,6 +19,7 @@ interface ExperienceConversationState {
   setOpen: (isOpen: boolean) => void;
   setExperience: (experience: Experience | null) => void;
   addMessage: (role: 'user' | 'assistant', content: string) => void;
+  setMessages: (messages: Array<{ role: 'user' | 'assistant', content: string }>) => void;
   setSuggestions: (suggestions: string[]) => void;
   setLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
@@ -45,6 +46,8 @@ export const useExperienceConversationStore = create<ExperienceConversationState
   addMessage: (role, content) => set((state) => ({
     messages: [...state.messages, { role, content }]
   })),
+
+  setMessages: (messages) => set({ messages }),
 
   setSuggestions: (suggestions) => set({ suggestions }),
 

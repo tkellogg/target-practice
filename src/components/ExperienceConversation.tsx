@@ -9,7 +9,11 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useExperienceConversationStore } from '../stores/useExperienceConversationStore';
 import { useResumeStore } from '../stores/useResumeStore';
 import type { Experience, Resume } from '../types/Resume';
-import Markdown from 'markdown-to-jsx';
+import Markdown from 'markdown-to-jsx'
+import { EditableText } from '../components/EditableText';
+import EditIcon from '@mui/icons-material/Edit';
+import PreviewIcon from '@mui/icons-material/Preview';
+import { EditableMarkdown } from './EditableMarkdown';
 
 interface Props {
   experience: Experience;
@@ -18,6 +22,8 @@ interface Props {
 
 export const ExperienceConversation = ({ experience, onClose }: Props) => {
   const [inputValue, setInputValue] = useState('');
+  const [summary, setSummary] = useState('');
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
   const { messages, suggestions, isLoading, addMessage, setSuggestions, setLoading, reset } = useExperienceConversationStore();
   const updateResume = useResumeStore(state => state.updateResume);
 
@@ -26,6 +32,18 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
 
   // Add state to track if conversation has started
   const hasConversationStarted = messages.length > 0;
+
+  // Initialize summary from existing anecdote if we're editing
+  useEffect(() => {
+    if (messages.length > 0) {
+      const existingAnecdote = experience.anecdotes?.find(
+        a => JSON.stringify(a.conversationContext?.messages) === JSON.stringify(messages)
+      );
+      if (existingAnecdote) {
+        setSummary(existingAnecdote.content);
+      }
+    }
+  }, [messages, experience.anecdotes]);
 
   useEffect(() => {
     const generateSuggestions = async () => {
@@ -73,6 +91,15 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
       });
       const data = await response.json();
       addMessage('assistant', data.response);
+
+      // Update summary after each message
+      const summaryResponse = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: [...messages, { role: 'user', content }, { role: 'assistant', content: data.response }], experience })
+      });
+      const summaryData = await summaryResponse.json();
+      setSummary(summaryData.summary);
     } catch (error) {
       console.error('Failed to get AI response:', error);
     } finally {
@@ -80,27 +107,35 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
     }
   };
 
-  const handleSummarize = async () => {
+  const handleSave = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, experience })
-      });
-      const data = await response.json();
-      
-      // Update the resume with the new anecdote
       const updatedResume = (currentResume: Resume): Resume => {
         const updatedExperience = currentResume.experience.map(exp => {
           if (exp.company === experience.company) {
+            // If we're editing an existing anecdote, update it
+            const existingAnecdoteIndex = exp.anecdotes?.findIndex(
+              a => JSON.stringify(a.conversationContext?.messages) === JSON.stringify(messages)
+            );
+            
+            if (existingAnecdoteIndex !== undefined && existingAnecdoteIndex >= 0) {
+              const updatedAnecdotes = [...(exp.anecdotes || [])];
+              updatedAnecdotes[existingAnecdoteIndex] = {
+                ...updatedAnecdotes[existingAnecdoteIndex],
+                content: summary,
+                timestamp: new Date().toISOString()
+              };
+              return { ...exp, anecdotes: updatedAnecdotes };
+            }
+            
+            // Otherwise create a new anecdote
             return {
               ...exp,
               anecdotes: [
                 ...(exp.anecdotes || []),
                 {
                   id: crypto.randomUUID(),
-                  content: data.summary,
+                  content: summary,
                   timestamp: new Date().toISOString(),
                   conversationContext: {
                     role: experience.positions[0].title,
@@ -116,11 +151,17 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
       };
 
       await updateResume(updatedResume(useResumeStore.getState().resume!));
-      reset();
-      onClose();
     } catch (error) {
-      console.error('Failed to summarize conversation:', error);
+      console.error('Failed to save anecdote:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleSaveAndExit = async () => {
+    await handleSave();
+    reset();
+    onClose();
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
@@ -140,17 +181,48 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
       </Box>
 
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* Left pane - Experience context */}
-        <Box sx={{ flex: 1, p: 2, borderRight: 1, borderColor: 'divider', overflow: 'auto' }}>
-          <Typography variant="subtitle1" gutterBottom>
-            {experience.company}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {experience.positions[0].title}
-          </Typography>
-          <Typography variant="body2">
-            {experience.description}
-          </Typography>
+        {/* Left pane - Experience context and Summary */}
+        <Box sx={{ 
+          flex: 1, 
+          borderRight: 1, 
+          borderColor: 'divider',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {/* Experience Context */}
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <Typography variant="subtitle1" gutterBottom>
+              {experience.company}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              {experience.positions[0].title}
+            </Typography>
+            <Typography variant="body2">
+              {experience.description}
+            </Typography>
+          </Box>
+
+          {/* Summary Section */}
+          <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Summary:
+            </Typography>
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <EditableMarkdown
+                value={summary}
+                onChange={setSummary}
+                sx={{ flex: 1 }}
+              />
+              <Button
+                variant="contained"
+                onClick={handleSaveAndExit}
+                disabled={!summary || isLoading}
+                sx={{ mt: 2 }}
+              >
+                Save & Exit
+              </Button>
+            </Box>
+          </Box>
         </Box>
 
         {/* Right pane - Conversation */}
@@ -222,13 +294,6 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
               sx={{ flex: 1 }}
               disabled={isLoading}
             />
-            <Button 
-              variant="contained" 
-              onClick={handleSummarize}
-              disabled={messages.length === 0 || isLoading}
-            >
-              Summarize
-            </Button>
           </Box>
         </Box>
       </Box>

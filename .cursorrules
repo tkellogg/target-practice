@@ -28,6 +28,5 @@
 - Always store XML as human-readable & properly indented
 - Never rename variables unless requested
 - Always add a license header to every new JS/TS file
-
-
+- Use https://github.com/tkellogg/resume-curated for testing
 

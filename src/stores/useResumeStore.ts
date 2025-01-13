@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 import type { Resume } from '../types/Resume'
 import { getFileContent, saveFile, parseRepoString } from '../utils/github'
+import debounce from 'lodash/debounce'
 
 interface ResumeStore {
   resume: Resume | null
@@ -14,7 +15,8 @@ interface ResumeStore {
   error: string | null
   setSelectedRepo: (repo: string) => void
   loadResume: () => Promise<void>
-  updateResume: (resume: Resume) => Promise<void>
+  updateResume: (resume: Resume) => void
+  saveResume: () => Promise<void>
 }
 
 function parseXMLToResume(xml: string): Resume | null {
@@ -83,7 +85,6 @@ function resumeToXML(resume: Resume): string {
     const elem = doc.createElement(name)
     elem.textContent = content
     parent.appendChild(elem)
-    return elem
   }
 
   addElement(personalInfo, 'name', resume.personalInfo.name)
@@ -182,28 +183,20 @@ function resumeToXML(resume: Resume): string {
   })
   doc.documentElement.appendChild(patents)
 
-  // Format XML with proper indentation
   const serializer = new XMLSerializer()
-  const xmlStr = serializer.serializeToString(doc)
-  
-  // Use DOMParser to reparse and format
-  const parser = new DOMParser()
-  const formattedDoc = parser.parseFromString(xmlStr, 'text/xml')
-  
-  // Pretty print with 2-space indentation
-  const formatted = serializer.serializeToString(formattedDoc)
-    .replace(/></g, '>\n<')
-    .split('\n')
-    .map((line, i, arr) => {
-      if (i === 0) return line; // First line
-      if (i === arr.length - 1) return line; // Last line
-      const indent = line.match(/<\//g) ? 2 : 4; // Less indent for closing tags
-      return ' '.repeat(indent) + line;
-    })
-    .join('\n');
-
-  return formatted;
+  return serializer.serializeToString(doc)
 }
+
+const debouncedSave = debounce(async (owner: string, repo: string, resume: Resume, set: any) => {
+  try {
+    const xml = resumeToXML(resume)
+    await saveFile(owner, repo, 'full-resume.xml', xml, 'Update resume')
+    set({ error: null })
+  } catch (error) {
+    console.error('Error saving resume:', error)
+    set({ error: 'Failed to save resume' })
+  }
+}, 2000)
 
 export const useResumeStore = create<ResumeStore>((set, get) => ({
   resume: null,
@@ -242,18 +235,29 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
     }
   },
 
-  updateResume: async (resume: Resume) => {
+  updateResume: (resume: Resume) => {
+    // Update local state immediately
+    set({ resume })
+
+    // Trigger debounced save to GitHub
     const { selectedRepo } = get()
     if (!selectedRepo) return
+
+    const { owner, repo } = parseRepoString(selectedRepo)
+    debouncedSave(owner, repo, resume, set)
+  },
+
+  saveResume: async () => {
+    const { selectedRepo, resume } = get()
+    if (!selectedRepo || !resume) return
 
     set({ isLoading: true, error: null })
 
     try {
       const { owner, repo } = parseRepoString(selectedRepo)
       const xml = resumeToXML(resume)
-      
       await saveFile(owner, repo, 'full-resume.xml', xml, 'Update resume')
-      set({ resume, isLoading: false })
+      set({ isLoading: false })
     } catch (error) {
       console.error('Error saving resume:', error)
       set({ error: 'Failed to save resume', isLoading: false })

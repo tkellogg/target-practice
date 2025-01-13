@@ -18,17 +18,35 @@ This feature adds conversation-based prompts that help enrich each job role in t
    - Once the user clicks a conversation starter (or opens a freeform chat), the frontend sends the user’s entire message to the LLM, along with relevant context (like the user’s last question or partial resume data).  
    - The LLM responds with clarifying questions or guidance.  
    - The user can continue back-and-forth until satisfied.
+   - There's a "send" button that has the same effect as hitting Enter
+   - The summary pane is updated every time the user hits enter (submits a message)
+
+3. **Summary Pane**
+   - The left pan has the experience item (job role) on the top, and existing
+   summary on the bottom.
+   - It summarizes the entire conversation as a cohesive anecdote
+   - It utilizes an editable text control, so the user can manually edit it as well.
+   - Contains a "Save & Exit" button, that ends the conversation and updates the XML
+   - While being manually edited, there's also a "Save" button that doesn't exit
+   - Upon clicking the edit button, it entires directly into an edit experience,
+   an editable text box.
+
+4. **Main Resume Editor**
+   - The main resume display shall contain edit & delete buttons for anecdotes
+   - When the edit button is clicked, the text turns into a text box that can be
+   edited manually by the user (standard editable text box behavior).
 
 ### Conversation Experience
 - On initiating a conversation (via prompt or button), the user sees a two-pane view:  
-  - Left Pane: The selected experience item and other contextual resume details.  
+  - Left Pane: The selected experience item and Summary Pane.
   - Right Pane: The ongoing conversation.  
 - The AI references the user’s existing resume data to suggest clarifications or follow-up questions. For example, “You mentioned reducing ops load for Company X. Could you describe how you accomplished that?”  
 - The user can freely respond, add details, and ask the AI to refine or probe further.
+- All AI text is rendered in markdown.
 
 ### Summarization & Storage
-- Once the user feels the conversation has yielded enough detail, they click “Summarize.”  
-- The AI condenses the conversation into a cohesive anecdote, which is appended to the corresponding experience item in `full-resume.xml`.  
+- Once the user feels the conversation has yielded enough detail, they click “Save.”
+- The summary from the Summary Pane is appended to the corresponding experience item in `full-resume.xml`.  
 - Past conversation logs are not retained. Only the final anecdote is stored in the XML.  
 - No backward-incompatible changes are introduced; existing resume data remains valid.
 

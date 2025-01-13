@@ -20,6 +20,7 @@ on it, it turns into an editable text box. The top-level contains all informatio
 and a very long high-level description of myself. Each job entry has seperate fields for company name, dates,
 positions (in-order), list of skills & tech used, overall description of what I did, as well as a list of bullet 
 point accomplishments. 
+Bullet point list items always contain a delete button.
 
 Below the experience section, there are sections for open source projects, & patents. Projects are each name, URL,
 longer description & list of technologies used. Patents are each patent number & title, and that's it.

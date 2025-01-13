@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-import { Box, Typography, CircularProgress, IconButton } from '@mui/material'
+import React, { useState } from 'react'
+import { Box, Typography, CircularProgress, IconButton, useTheme } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
+import EditIcon from '@mui/icons-material/Edit'
+import DeleteIcon from '@mui/icons-material/Delete'
 import { useResumeStore } from '../stores/useResumeStore'
 import { EditableText } from '../components/EditableText'
 import { MenuBar } from '../components/MenuBar'
@@ -23,6 +26,8 @@ import { Resume, Experience, Position } from '../types/Resume'
 import ChatIcon from '@mui/icons-material/Chat'
 import { ExperienceConversation } from '../components/ExperienceConversation'
 import { useExperienceConversationStore } from '../stores/useExperienceConversationStore'
+import Markdown from 'markdown-to-jsx'
+import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog'
 
 function isPosition(obj: any): obj is Position {
   return obj && 
@@ -45,6 +50,17 @@ function isExperience(obj: any): obj is Experience {
 export const Editor = () => {
   const { resume, isLoading, error, updateResume } = useResumeStore()
   const { isOpen, currentExperience } = useExperienceConversationStore();
+  const theme = useTheme()
+  const [editingItem, setEditingItem] = useState<{
+    type: 'skill' | 'accomplishment'
+    jobIndex: number
+    itemIndex: number
+  } | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{
+    type: 'experience'
+    index: number
+    title: string
+  } | null>(null)
 
   const handleUpdate = (updater: (resume: Resume) => Resume) => {
     if (resume) {
@@ -64,8 +80,7 @@ export const Editor = () => {
       }],
       skills: ['New Skill'],
       description: 'Description of role and responsibilities',
-      accomplishments: ['First accomplishment'],
-      anecdotes: []
+      accomplishments: ['First accomplishment']
     }
 
     handleUpdate(r => ({
@@ -112,6 +127,11 @@ export const Editor = () => {
         experience: updatedExperience as Experience[]
       }
     })
+    setEditingItem({
+      type: 'accomplishment',
+      jobIndex,
+      itemIndex: resume!.experience[jobIndex].accomplishments.length
+    })
   }
 
   const addSkill = (jobIndex: number) => {
@@ -129,6 +149,11 @@ export const Editor = () => {
         ...r,
         experience: updatedExperience as Experience[]
       }
+    })
+    setEditingItem({
+      type: 'skill',
+      jobIndex,
+      itemIndex: resume!.experience[jobIndex].skills.length
     })
   }
 
@@ -154,6 +179,65 @@ export const Editor = () => {
         experience: updatedExperience as Experience[]
       }
     })
+  }
+
+  const handleDeleteExperience = (index: number) => {
+    setDeleteDialog({
+      type: 'experience',
+      index,
+      title: resume!.experience[index].company
+    })
+  }
+
+  const handleConfirmDelete = () => {
+    if (!deleteDialog) return
+
+    if (deleteDialog.type === 'experience') {
+      handleUpdate(r => ({
+        ...r,
+        experience: r.experience.filter((_, i) => i !== deleteDialog.index)
+      }))
+    }
+
+    setDeleteDialog(null)
+  }
+
+  const handleDeleteAccomplishment = (jobIndex: number, accIndex: number) => {
+    handleUpdate(r => ({
+      ...r,
+      experience: r.experience.map((job, i) => 
+        i === jobIndex ? {
+          ...job,
+          accomplishments: job.accomplishments.filter((_, j) => j !== accIndex)
+        } : job
+      )
+    }))
+  }
+
+  const handleDeleteSkill = (jobIndex: number, skillIndex: number) => {
+    handleUpdate(r => ({
+      ...r,
+      experience: r.experience.map((job, i) => 
+        i === jobIndex ? {
+          ...job,
+          skills: job.skills.filter((_, j) => j !== skillIndex)
+        } : job
+      )
+    }))
+  }
+
+  const handleDeleteProject = (index: number) => {
+    handleUpdate(r => ({
+      ...r,
+      projects: r.projects.filter((_, i) => i !== index)
+    }))
+  }
+
+  const handleDeletePatent = (index: number) => {
+    handleUpdate(r => ({
+      ...r,
+      patents: r.patents.filter((_, i) => i !== index)
+    }))
   }
 
   if (isLoading) {
@@ -230,27 +314,59 @@ export const Editor = () => {
           </IconButton>
         </Box>
         {resume.experience.map((job, index) => (
-          <Box key={index} mb={4}>
-            <EditableText
-              value={job.company}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                experience: r.experience.map((j, i) => 
-                  i === index ? { ...j, company: value } : j
-                )
-              }))}
-              variant="h6"
-            />
-            <EditableText
-              value={job.dates}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                experience: r.experience.map((j, i) => 
-                  i === index ? { ...j, dates: value } : j
-                )
-              }))}
-              variant="subtitle1"
-            />
+          <Box 
+            key={index} 
+            mb={4} 
+            sx={{ 
+              p: 2,
+              pt: 5,
+              borderRadius: '2px',
+              bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+              border: `1px solid ${theme.palette.divider}`,
+              position: 'relative'
+            }}
+          >
+            <IconButton 
+              onClick={() => handleDeleteExperience(index)}
+              size="small"
+              sx={{
+                position: 'absolute',
+                top: -12,
+                right: 8,
+                bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+                border: `1px solid ${theme.palette.divider}`,
+                '&:hover': {
+                  bgcolor: theme.palette.mode === 'light' ? 'grey.200' : 'grey.700',
+                }
+              }}
+            >
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1 }}>
+                <EditableText
+                  value={job.company}
+                  onChange={(value) => handleUpdate(r => ({
+                    ...r,
+                    experience: r.experience.map((j, i) => 
+                      i === index ? { ...j, company: value } : j
+                    )
+                  }))}
+                  variant="h6"
+                />
+                <EditableText
+                  value={job.dates}
+                  onChange={(value) => handleUpdate(r => ({
+                    ...r,
+                    experience: r.experience.map((j, i) => 
+                      i === index ? { ...j, dates: value } : j
+                    )
+                  }))}
+                  variant="subtitle1"
+                />
+              </Box>
+            </Box>
+
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <EditableText
                 value={job.positions.map(pos => pos.title).join(' → ')}
@@ -294,16 +410,30 @@ export const Editor = () => {
                 <AddIcon fontSize="small" />
               </IconButton>
             </Box>
-            <EditableText
-              value={job.skills.join(', ')}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                experience: r.experience.map((j, i) => 
-                  i === index ? { ...j, skills: value.split(', ').map(s => s.trim()) } : j
-                )
-              }))}
-              variant="body2"
-            />
+            {job.skills.map((skill, skillIndex) => (
+              <EditableText
+                key={skillIndex}
+                value={skill}
+                onChange={(value) => {
+                  handleUpdate(r => ({
+                    ...r,
+                    experience: r.experience.map((j, i) => 
+                      i === index ? {
+                        ...j,
+                        skills: j.skills.map((s, si) => si === skillIndex ? value : s)
+                      } : j
+                    )
+                  }))
+                  setEditingItem(null)
+                }}
+                variant="body2"
+                onDelete={() => handleDeleteSkill(index, skillIndex)}
+                forceEdit={editingItem?.type === 'skill' && 
+                          editingItem.jobIndex === index && 
+                          editingItem.itemIndex === skillIndex}
+              />
+            ))}
+
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <Typography variant="subtitle2">Accomplishments:</Typography>
               <IconButton onClick={() => addAccomplishment(index)} size="small" sx={{ ml: 1 }}>
@@ -311,22 +441,29 @@ export const Editor = () => {
               </IconButton>
             </Box>
             <ul>
-              {job.accomplishments.map((item, i) => (
-                <li key={i}>
+              {job.accomplishments.map((item, accIndex) => (
+                <li key={accIndex}>
                   <EditableText
                     value={item}
-                    onChange={(value) => handleUpdate(r => ({
-                      ...r,
-                      experience: r.experience.map((j, jobIndex) => 
-                        jobIndex === index ? {
-                          ...j,
-                          accomplishments: j.accomplishments.map((a, accIndex) =>
-                            accIndex === i ? value : a
-                          )
-                        } : j
-                      )
-                    }))}
+                    onChange={(value) => {
+                      handleUpdate(r => ({
+                        ...r,
+                        experience: r.experience.map((j, jobIndex) => 
+                          jobIndex === index ? {
+                            ...j,
+                            accomplishments: j.accomplishments.map((a, ai) =>
+                              ai === accIndex ? value : a
+                            )
+                          } : j
+                        )
+                      }))
+                      setEditingItem(null)
+                    }}
                     variant="body2"
+                    onDelete={() => handleDeleteAccomplishment(index, accIndex)}
+                    forceEdit={editingItem?.type === 'accomplishment' && 
+                              editingItem.jobIndex === index && 
+                              editingItem.itemIndex === accIndex}
                   />
                 </li>
               ))}
@@ -347,22 +484,64 @@ export const Editor = () => {
             </Box>
             {job.anecdotes?.map((anecdote, i) => (
               <Box key={anecdote.id} sx={{ mt: 1 }}>
-                <EditableText
-                  value={anecdote.content}
-                  onChange={(value) => handleUpdate(r => ({
-                    ...r,
-                    experience: r.experience.map((j, jobIndex) => 
-                      jobIndex === index ? {
-                        ...j,
-                        anecdotes: j.anecdotes?.map((a, anecdoteIndex) =>
-                          anecdoteIndex === i ? { ...a, content: value } : a
-                        )
-                      } : j
-                    )
-                  }))}
-                  variant="body2"
-                  multiline
-                />
+                <details>
+                  <summary style={{ 
+                    cursor: 'pointer',
+                    color: 'text.secondary',
+                    fontSize: '0.875rem',
+                    marginBottom: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <span style={{ flex: 1 }}>
+                      {anecdote.conversationContext?.messages[0]?.content || 'Anecdote'} ({new Date(anecdote.timestamp).toLocaleDateString()})
+                    </span>
+                    <IconButton 
+                      size="small"
+                      onClick={(e) => {
+                        e.preventDefault(); // Prevent details from toggling
+                        useExperienceConversationStore.getState().setExperience(job);
+                        useExperienceConversationStore.getState().setMessages(anecdote.conversationContext?.messages || []);
+                        useExperienceConversationStore.getState().setOpen(true);
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small"
+                      onClick={(e) => {
+                        e.preventDefault(); // Prevent details from toggling
+                        handleUpdate(r => ({
+                          ...r,
+                          experience: r.experience.map((j, jobIndex) => 
+                            j.company === job.company ? {
+                              ...j,
+                              anecdotes: (j.anecdotes || []).filter(a => a.id !== anecdote.id)
+                            } : j
+                          )
+                        }));
+                      }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </summary>
+                  <Box sx={{ 
+                    ml: 2,
+                    '& p': { my: 1 },
+                    '& ul, & ol': { my: 1, pl: 3 },
+                    '& li': { my: 0.5 },
+                    '& code': {
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      bgcolor: 'grey.100',
+                      fontFamily: 'monospace'
+                    }
+                  }}>
+                    <Markdown>{anecdote.content}</Markdown>
+                  </Box>
+                </details>
               </Box>
             ))}
           </Box>
@@ -375,17 +554,42 @@ export const Editor = () => {
           </IconButton>
         </Box>
         {resume.projects.map((project, index) => (
-          <Box key={index} mb={3}>
-            <EditableText
-              value={project.name}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                projects: r.projects.map((p, i) => 
-                  i === index ? { ...p, name: value } : p
-                )
-              }))}
-              variant="h6"
-            />
+          <Box 
+            key={index} 
+            mb={2}
+            sx={{ 
+              p: 2,
+              borderRadius: '2px',
+              bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1 }}>
+                <EditableText
+                  value={project.name}
+                  onChange={(value) => handleUpdate(r => ({
+                    ...r,
+                    projects: r.projects.map((p, i) => 
+                      i === index ? { ...p, name: value } : p
+                    )
+                  }))}
+                  variant="h6"
+                />
+              </Box>
+              <IconButton 
+                onClick={() => handleDeleteProject(index)}
+                size="small"
+                sx={{
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                  '&:hover': { opacity: 1 },
+                  [`${Box}:hover &`]: { opacity: 1 }
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
             <EditableText
               value={project.url}
               onChange={(value) => handleUpdate(r => ({
@@ -427,24 +631,58 @@ export const Editor = () => {
           </IconButton>
         </Box>
         {resume.patents.map((patent, index) => (
-          <Box key={index} mb={2}>
-            <EditableText
-              value={`${patent.number} - ${patent.title}`}
-              onChange={(value) => {
-                const [number, ...titleParts] = value.split(' - ')
-                const title = titleParts.join(' - ')
-                handleUpdate(r => ({
-                  ...r,
-                  patents: r.patents.map((p, i) => 
-                    i === index ? { number, title } : p
-                  )
-                }))
-              }}
-              variant="subtitle1"
-            />
+          <Box 
+            key={index} 
+            mb={2}
+            sx={{ 
+              p: 2,
+              borderRadius: '2px',
+              bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ flex: 1 }}>
+                <EditableText
+                  value={`${patent.number} - ${patent.title}`}
+                  onChange={(value) => {
+                    const [number, ...titleParts] = value.split(' - ')
+                    const title = titleParts.join(' - ')
+                    handleUpdate(r => ({
+                      ...r,
+                      patents: r.patents.map((p, i) => 
+                        i === index ? { number, title } : p
+                      )
+                    }))
+                  }}
+                  variant="subtitle1"
+                />
+              </Box>
+              <IconButton 
+                onClick={() => handleDeletePatent(index)}
+                size="small"
+                sx={{
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                  '&:hover': { opacity: 1 },
+                  [`${Box}:hover &`]: { opacity: 1 }
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
           </Box>
         ))}
       </Box>
+
+      <DeleteConfirmDialog
+        open={deleteDialog !== null}
+        title={`Delete ${deleteDialog?.title}?`}
+        message="This will permanently delete this experience and all its details, including skills, accomplishments, and anecdotes."
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteDialog(null)}
+      />
+
       {isOpen && currentExperience && (
         <Box
           sx={{
