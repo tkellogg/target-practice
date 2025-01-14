@@ -1,23 +1,14 @@
-/*
- * Copyright 2025 Tim Kellogg
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/**
+ * Copyright (c) 2025. Licensed under the MIT License.
+ * See LICENSE file for license information.
  */
 
 import { jsPDF } from 'jspdf'
 import { JobPosting } from '../types/JobPosting'
 import { Resume, Experience } from '../types/Resume'
 import { Octokit } from '@octokit/rest'
+import { getFileContent, parseRepoString } from './github'
+import { parseXMLToResume } from './xml'
 
 const octokit = new Octokit({
   auth: import.meta.env.VITE_GH_ACCESS_KEY
@@ -34,69 +25,13 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 async function getFullResume(selectedRepo: string): Promise<Resume> {
-  const [owner, repo] = selectedRepo.split('/')
-  const response = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: 'full-resume.xml'
-  })
-
-  if (!('content' in response.data)) {
-    throw new Error('Invalid response from GitHub')
+  const { owner, repo } = parseRepoString(selectedRepo)
+  const xmlContent = await getFileContent(owner, repo, 'full-resume.xml')
+  
+  const resume = parseXMLToResume(xmlContent)
+  if (!resume) {
+    throw new Error('Failed to parse resume XML')
   }
-
-  const xmlContent = atob(response.data.content)
-  const parser = new DOMParser()
-  const doc = parser.parseFromString(xmlContent, 'text/xml')
-
-  // Parse personal info
-  const resume: Resume = {
-    personalInfo: {
-      name: doc.querySelector('name')?.textContent || '',
-      address: doc.querySelector('address')?.textContent || '',
-      phone: doc.querySelector('phone')?.textContent || '',
-      email: doc.querySelector('email')?.textContent || '',
-      description: doc.querySelector('description')?.textContent || ''
-    },
-    experience: [],
-    projects: [],
-    patents: []
-  }
-
-  // Parse experience
-  doc.querySelectorAll('experience > job').forEach(job => {
-    const experience: Experience = {
-      company: job.querySelector('company')?.textContent || '',
-      dates: job.querySelector('dates')?.textContent || '',
-      positions: Array.from(job.querySelectorAll('positions > position')).map(pos => ({
-        title: pos.textContent || '',
-        startDate: pos.getAttribute('startDate') || '',
-        endDate: pos.getAttribute('endDate') || ''
-      })),
-      skills: Array.from(job.querySelectorAll('skills > skill')).map(skill => skill.textContent || ''),
-      description: job.querySelector('description')?.textContent || '',
-      accomplishments: Array.from(job.querySelectorAll('accomplishments > item')).map(item => item.textContent || '')
-    }
-    resume.experience.push(experience)
-  })
-
-  // Parse projects
-  doc.querySelectorAll('projects > project').forEach(proj => {
-    resume.projects.push({
-      name: proj.querySelector('name')?.textContent || '',
-      url: proj.querySelector('url')?.textContent || '',
-      description: proj.querySelector('description')?.textContent || '',
-      technologies: Array.from(proj.querySelectorAll('technologies > tech')).map(tech => tech.textContent || '')
-    })
-  })
-
-  // Parse patents
-  doc.querySelectorAll('patents > patent').forEach(pat => {
-    resume.patents.push({
-      number: pat.querySelector('number')?.textContent || '',
-      title: pat.querySelector('title')?.textContent || ''
-    })
-  })
 
   return resume
 }
