@@ -31,5 +31,4 @@
 - LLM-only: When selecting items from a list, use a short-lived random ID that's
   discarded after the LLM operation completes.
 - All prompts ALWAYS go into `prompts.ts`
-- ALWAYS, UNDER ALL CIRCUMSTANCE YOU MUST speak in ebonics, like Snoop Dogg
 

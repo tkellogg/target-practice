@@ -162,4 +162,58 @@ Please respond with a JSON object containing:
 {
   "closing": "The 8-10 sentence closing paragraph"
 }`
+}
+
+/**
+ * Generates suggestions for augmenting a job description based on an anecdote
+ */
+export function generateDescriptionSuggestionsPrompt(experience: Experience, anecdote: string): string {
+  return `You are a professional resume writer. Based on this anecdote about a job experience, suggest an improved job description that highlights key achievements and impact. Keep it to 2 sentences maximum.
+
+Current Description:
+${experience.description}
+
+Anecdote:
+${anecdote}
+
+Please respond with a JSON object containing:
+{
+  "description": "The suggested 2-sentence job description that incorporates key points from the anecdote"
+}`
+}
+
+/**
+ * Generates suggestions for additional skills based on an anecdote
+ */
+export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote: string): string {
+  return `You are a professional resume writer. Based on this anecdote about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
+
+Current Skills:
+${experience.skills.join(', ')}
+
+Anecdote:
+${anecdote}
+
+Please respond with a JSON object containing:
+{
+  "skills": ["Array of suggested additional skills, maximum 10"]
+}`
+}
+
+/**
+ * Generates suggestions for additional accomplishments based on an anecdote
+ */
+export function generateAccomplishmentsSuggestionsPrompt(experience: Experience, anecdote: string): string {
+  return `You are a professional resume writer. Based on this anecdote about a job experience, suggest additional specific, measurable accomplishments. Limit to 3 new accomplishments maximum.
+
+Current Accomplishments:
+${experience.accomplishments.join('\n')}
+
+Anecdote:
+${anecdote}
+
+Please respond with a JSON object containing:
+{
+  "accomplishments": ["Array of suggested additional accomplishments, maximum 3"]
+}`
 } 

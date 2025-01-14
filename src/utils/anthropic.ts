@@ -3,8 +3,8 @@
  * See LICENSE file for license information.
  */
 
-export async function callAnthropicAPI(prompt: string) {
-  const response = await fetch('/api/generate-resume', {
+export async function callAnthropicAPI(prompt: string, endpoint: string = '/api/analyze') {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -16,7 +16,8 @@ export async function callAnthropicAPI(prompt: string) {
     throw new Error('Failed to call Anthropic API');
   }
 
-  return response.json();
+  const data = await response.json();
+  return data.content[0].text;
 }
 
 // Add type for response

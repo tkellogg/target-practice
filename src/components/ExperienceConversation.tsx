@@ -172,8 +172,8 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
   };
 
   return (
-    <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
         <Typography variant="h6">Expand Experience Details</Typography>
         <IconButton onClick={() => { reset(); onClose(); }}>
           <CloseIcon />
@@ -187,7 +187,8 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           borderRight: 1, 
           borderColor: 'divider',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          overflow: 'auto'
         }}>
           {/* Experience Context */}
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
@@ -297,6 +298,6 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           </Box>
         </Box>
       </Box>
-    </Paper>
+    </Box>
   );
 }; 

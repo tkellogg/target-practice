@@ -6,6 +6,8 @@ import React, { useState } from 'react';
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { EditableText } from './EditableText';
 import { LLMFeedbackBadge, LLMIssue } from './LLMFeedbackBadge';
+import { AnecdoteAugmentation } from './AnecdoteAugmentation';
+import { Experience } from '../types/Resume';
 
 interface ResumeSectionProps {
   title: string;
@@ -13,6 +15,8 @@ interface ResumeSectionProps {
   issues: LLMIssue[];
   onRegenerate: () => Promise<void>;
   onChange: (newContent: string) => void;
+  experience?: Experience;
+  type?: 'description' | 'skills' | 'accomplishments';
 }
 
 export const ResumeSection: React.FC<ResumeSectionProps> = ({
@@ -21,6 +25,8 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
   issues,
   onRegenerate,
   onChange,
+  experience,
+  type,
 }) => {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showIssues, setShowIssues] = useState(false);
@@ -34,6 +40,21 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
     }
   };
 
+  const handleAcceptSuggestions = (suggestions: string[]) => {
+    if (type === 'description') {
+      // For description, replace the entire content
+      onChange(suggestions[0]);
+    } else if (type === 'skills' || type === 'accomplishments') {
+      // For skills and accomplishments, append new items
+      const currentItems = content.split('\n').filter(Boolean);
+      const newItems = [...currentItems, ...suggestions];
+      onChange(newItems.join('\n'));
+    }
+  };
+
+  const hasAnecdotes = experience?.anecdotes && experience.anecdotes.length > 0;
+  const latestAnecdote = hasAnecdotes ? experience!.anecdotes![0].content : '';
+
   return (
     <Paper sx={{ p: 2, mb: 2, position: 'relative' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -44,6 +65,16 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
             onShowIssues={() => setShowIssues(!showIssues)} 
           />
         </Box>
+        {hasAnecdotes && type && (
+          <Box sx={{ ml: 'auto' }}>
+            <AnecdoteAugmentation
+              experience={experience!}
+              type={type}
+              anecdote={latestAnecdote}
+              onAccept={handleAcceptSuggestions}
+            />
+          </Box>
+        )}
       </Box>
 
       <EditableText
