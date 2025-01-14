@@ -19,14 +19,15 @@
 - frontend is on port 3001, backend is on 3002
 - Don't use Node.js APIs like Buffer, this runs in the browser.
 - Use tsconfig.server.json for server.ts, for all other files always use tsconfig.json
-- Use `tsc --noEmit && node --loader ts-node/esm` to launch the server
+- Use `tsx watch` to launch the server
 - NEVER change my .env file
 - For LLM responses when you expect JSON, always trim everything before '{' and afer '}'
 - For editable text, always use EditableText
 - Share code across modules whenever approprite
-- Always run `npx tsc --noEmit` before finishing
-- Always store XML as human-readable & properly indented
+- Always store XML as human-readable properly indented
 - Never rename variables unless requested
-- Always add a license header to every new JS/TS file
+- Always add a license header to every new JS/TS file with current year, 2025
 - Use https://github.com/tkellogg/resume-curated for testing
+- LLM-only: When selecting items from a list, use a short-lived random ID that's
+  discarded after the LLM operation completes.
 

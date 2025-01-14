@@ -4,7 +4,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "build:server": "tsc --project tsconfig.server.json",
-    "dev:server": "tsc --project tsconfig.server.json --noEmit && node --loader ts-node/esm server.ts",
+    "dev:server": "tsx watch server.ts",
     "dev": "concurrently \"vite\" \"npm run dev:server\""
   },
   "dependencies": {

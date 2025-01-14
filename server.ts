@@ -8,6 +8,8 @@ import { config } from 'dotenv'
 import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
 import type { Experience } from './src/types/Resume.ts'
+import type { JobPosting, JobAnalysis } from './src/types/JobPosting.ts'
+import type { Resume } from './src/types/Resume.ts'
 
 config()
 
@@ -181,6 +183,44 @@ ${messages.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n')}`
   } catch (error) {
     console.error('Error summarizing conversation:', error);
     res.status(500).json({ error: 'Failed to summarize conversation' });
+  }
+});
+
+app.post('/api/job-postings/generate-resume', async (req: Request, res: Response) => {
+  try {
+    const { posting, resume } = req.body as { posting: JobPosting, resume: Resume };
+    
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: `You are a professional resume writer helping a candidate tailor their resume for a specific job posting.
+
+Job Posting:
+${posting.rawText}
+
+Current Resume:
+${JSON.stringify(resume, null, 2)}
+
+Please rewrite the resume to highlight relevant experience and skills for this role. Focus on:
+1. Matching keywords and requirements from the job posting
+2. Quantifying achievements where possible
+3. Using active voice and strong action verbs
+4. Maintaining truthfulness while emphasizing relevant experience
+
+Return ONLY the revised resume text, with no additional commentary.`
+      }]
+    });
+
+    const generatedResume = response.content[0].type === 'text' ? response.content[0].text : '';
+    
+    console.log('Generated resume for:', posting.company, posting.title); // Per .cursorrules: Log everything on backend
+    
+    res.json({ generatedResume });
+  } catch (error) {
+    console.error('Error generating resume:', error);
+    res.status(500).json({ error: 'Failed to generate resume' });
   }
 });
 

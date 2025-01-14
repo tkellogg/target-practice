@@ -154,15 +154,14 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
   y = addWrappedText(resume.personalInfo.address, y, 12) + lineHeight
 
   if (posting.generatedResume) {
-    const [overview, closing] = posting.generatedResume.split('\n\n')
-    
     // Overview section
     y = addSectionHeader('Overview', y)
-    y = addWrappedText(overview, y) + lineHeight
+    y = addWrappedText(posting.generatedResume.overview, y) + lineHeight
 
     // Experience section
     y = addSectionHeader('Experience', y)
-    for (const job of resume.experience) {
+    for (const job of resume.experience.filter((_, i) => 
+      posting.generatedResume?.selectedExperienceIds.includes(`exp_${i}`))) {
       y = checkNewPage(y, lineHeight * 4) // Space for company and at least one position
       
       // Company name in bold
@@ -222,7 +221,7 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
 
     // Closing section
     y = addSectionHeader('Closing', y)
-    y = addWrappedText(closing, y)
+    y = addWrappedText(posting.generatedResume.closing, y)
   }
 
   // Convert PDF to base64

@@ -3,16 +3,24 @@
  * See LICENSE file for license information.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useJobPostingStore } from '../stores/useJobPostingStore';
-import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography, CircularProgress } from '@mui/material';
 import type { JobPosting } from '../types/JobPosting';
+import { JobPostEditor } from '../components/JobPostEditor';
 
 export function JobPostings() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newPosting, setNewPosting] = useState<Partial<JobPosting>>({});
+  const [selectedPosting, setSelectedPosting] = useState<JobPosting | null>(null);
   
-  const { postings, createPosting, isLoading, error } = useJobPostingStore();
+  const { postings, createPosting, isLoading, error, selectedRepo, loadPostings } = useJobPostingStore();
+
+  useEffect(() => {
+    if (selectedRepo) {
+      loadPostings();
+    }
+  }, [selectedRepo]);
 
   const handleCreate = async () => {
     if (!newPosting.company || !newPosting.title || !newPosting.url || !newPosting.rawText) {
@@ -41,36 +49,76 @@ export function JobPostings() {
     return `${date}-${slug}`;
   };
 
+  if (!selectedRepo) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography>Please select a repository first</Typography>
+      </Box>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" p={4}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (selectedPosting) {
+    return (
+      <Box sx={{ 
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        bgcolor: 'background.paper',
+        zIndex: 1200 
+      }}>
+        <JobPostEditor 
+          posting={selectedPosting} 
+          onClose={() => setSelectedPosting(null)} 
+        />
+      </Box>
+    );
+  }
+
   return (
-    <div>
-      <h2>Job Postings</h2>
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5">Job Postings</Typography>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={() => setIsDialogOpen(true)}
+          disabled={isLoading}
+        >
+          Add Job Posting
+        </Button>
+      </Box>
       
-      <Button 
-        variant="contained" 
-        color="primary" 
-        onClick={() => setIsDialogOpen(true)}
-        disabled={isLoading}
-      >
-        Add Job Posting
-      </Button>
+      {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      <ul>
-        {postings.map(posting => (
-          <li key={posting.id}>
-            <h3>{posting.title}</h3>
-            <p>{posting.company}</p>
-            <a href={posting.url} target="_blank" rel="noopener noreferrer">View Job</a>
-            {posting.generatedResume && (
-              <div>
-                <h4>Generated Resume</h4>
-                <pre>{posting.generatedResume}</pre>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+      {postings.length === 0 ? (
+        <Typography sx={{ textAlign: 'center', mt: 4 }}>
+          No job postings yet. Click "Add Job Posting" to create one.
+        </Typography>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {postings.map(posting => (
+            <Button
+              key={posting.id}
+              variant="outlined"
+              color="primary"
+              onClick={() => setSelectedPosting(posting)}
+              sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+            >
+              {posting.company} — {posting.title}
+            </Button>
+          ))}
+        </Box>
+      )}
 
       <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)}>
         <DialogTitle>Add Job Posting</DialogTitle>
@@ -113,6 +161,6 @@ export function JobPostings() {
           </Button>
         </DialogActions>
       </Dialog>
-    </div>
+    </Box>
   );
 } 

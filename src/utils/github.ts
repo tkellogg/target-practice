@@ -9,6 +9,24 @@ const octokit = new Octokit({
   auth: import.meta.env.VITE_GH_ACCESS_KEY
 });
 
+// Helper function to safely encode Unicode strings to base64
+function unicodeToBase64(str: string): string {
+  // First convert the string to UTF-8 bytes
+  const bytes = new TextEncoder().encode(str);
+  // Then convert bytes to base64 using a temporary array
+  const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binString);
+}
+
+// Helper function to safely decode base64 to Unicode strings
+function base64ToUnicode(base64: string): string {
+  // First decode base64 to bytes
+  const binString = atob(base64);
+  // Then convert bytes to UTF-8 string
+  const bytes = Uint8Array.from(binString, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 export async function getFileContent(owner: string, repo: string, path: string): Promise<string> {
   try {
     const response = await octokit.repos.getContent({
@@ -21,7 +39,7 @@ export async function getFileContent(owner: string, repo: string, path: string):
       throw new Error('Invalid response from GitHub');
     }
 
-    return atob(response.data.content);
+    return base64ToUnicode(response.data.content.replace(/\n/g, ''));
   } catch (error) {
     console.error('Failed to get file content:', error);
     throw error;
@@ -42,7 +60,7 @@ export async function saveFile(owner: string, repo: string, path: string, conten
       repo,
       path,
       message: message || (existing ? `Update ${path}` : `Create ${path}`),
-      content: btoa(content),
+      content: unicodeToBase64(content),
       ...(existing?.data && 'sha' in existing.data ? { sha: existing.data.sha } : {}),
       branch: 'main'
     });
@@ -99,4 +117,24 @@ export function parseRepoString(repoString: string): { owner: string; repo: stri
     throw new Error('Invalid repository string format. Expected "owner/repo"');
   }
   return { owner, repo };
+}
+
+export async function checkFileExists(owner: string, repo: string, path: string): Promise<string | null> {
+  try {
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
+      path
+    });
+    
+    if ('download_url' in response.data) {
+      return response.data.download_url;
+    }
+    return null;
+  } catch (error) {
+    if ((error as any).status === 404) {
+      return null;
+    }
+    throw error;
+  }
 } 

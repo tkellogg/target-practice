@@ -5,22 +5,23 @@
 
 import { create } from 'zustand';
 import type { Resume } from '../types/Resume';
-import type { JobPosting } from '../types/JobPosting';
+import type { JobPosting, JobAnalysis } from '../types/JobPosting';
 import { getFileContent, saveFile, listFiles, parseRepoString } from '../utils/github';
-import { callAnthropicAPI } from '../utils/anthropic';
-import { generateResumePrompt } from '../utils/prompts';
 
 interface JobPostingStore {
   selectedRepo: string | null;
+  selectedPosting: JobPosting | null;
   postings: JobPosting[];
   isLoading: boolean;
   error: string | null;
   setSelectedRepo: (repo: string) => void;
+  setSelectedPosting: (posting: JobPosting | null) => void;
   loadPostings: () => Promise<void>;
   createPosting: (posting: JobPosting) => Promise<void>;
   updatePosting: (posting: JobPosting) => Promise<void>;
   generateResume: (posting: JobPosting, resume: Resume) => Promise<void>;
   updateRequirements: (posting: JobPosting, type: 'required' | 'optional', requirements: string[]) => Promise<void>;
+  analyzePosting: (posting: JobPosting) => Promise<void>;
 }
 
 function postingToXML(posting: JobPosting): string {
@@ -38,7 +39,17 @@ function postingToXML(posting: JobPosting): string {
   addElement(doc.documentElement, 'rawText', posting.rawText);
 
   if (posting.generatedResume) {
-    addElement(doc.documentElement, 'generatedResume', posting.generatedResume);
+    const resume = doc.createElement('generatedResume');
+    addElement(resume, 'overview', posting.generatedResume.overview);
+    addElement(resume, 'closing', posting.generatedResume.closing);
+    
+    const selectedIds = doc.createElement('selectedExperienceIds');
+    posting.generatedResume.selectedExperienceIds.forEach((id: string) => {
+      addElement(selectedIds, 'id', id);
+    });
+    resume.appendChild(selectedIds);
+    
+    doc.documentElement.appendChild(resume);
   }
 
   if (posting.analysis) {
@@ -76,9 +87,18 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
       company: doc.querySelector('company')?.textContent ?? '',
       title: doc.querySelector('title')?.textContent ?? '',
       url: doc.querySelector('url')?.textContent ?? '',
-      rawText: doc.querySelector('rawText')?.textContent ?? '',
-      generatedResume: doc.querySelector('generatedResume')?.textContent ?? undefined
+      rawText: doc.querySelector('rawText')?.textContent ?? ''
     };
+
+    const generatedResumeElem = doc.querySelector('generatedResume');
+    if (generatedResumeElem) {
+      posting.generatedResume = {
+        overview: generatedResumeElem.querySelector('overview')?.textContent ?? '',
+        closing: generatedResumeElem.querySelector('closing')?.textContent ?? '',
+        selectedExperienceIds: Array.from(generatedResumeElem.querySelectorAll('selectedExperienceIds id'))
+          .map(el => el.textContent ?? '')
+      };
+    }
 
     const analysis = doc.querySelector('analysis');
     if (analysis) {
@@ -104,6 +124,7 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
 
 export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   selectedRepo: null,
+  selectedPosting: null,
   postings: [],
   isLoading: false,
   error: null,
@@ -111,6 +132,10 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   setSelectedRepo: (repo) => {
     set({ selectedRepo: repo });
     get().loadPostings();
+  },
+
+  setSelectedPosting: (posting) => {
+    set({ selectedPosting: posting });
   },
 
   loadPostings: async () => {
@@ -190,25 +215,164 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
       
-      // Generate if it doesn't exist
-      if (!posting.generatedResume) {
-        const prompt = generateResumePrompt(posting, JSON.stringify(resume, null, 2));
-        const response = await callAnthropicAPI(prompt);
-        const generatedResume = typeof response.content === 'string'
-          ? response.content
-          : response.content[0]?.type === 'text' 
-            ? response.content[0].text 
-            : '';
-        
-        // Update posting with new resume
-        const updatedPosting = {
-          ...posting,
-          generatedResume
-        };
+      // Generate overview
+      const overviewResponse = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `You are a professional resume writer. Write a 2-sentence overview that summarizes character traits & experience directly relevant to this job.
 
-        await get().updatePosting(updatedPosting);
+Job Description:
+${posting.rawText}
+
+Job Analysis:
+${posting.analysis?.roleDescription}
+Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
+Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
+Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
+
+Resume Overview:
+${resume.personalInfo.description}
+
+Please respond with a JSON object containing:
+{
+  "overview": "The 2-sentence overview"
+}`
+        })
+      });
+
+      if (!overviewResponse.ok) {
+        throw new Error('Failed to generate overview');
       }
+
+      const overviewData = await overviewResponse.json();
+      const overviewJson = JSON.parse(
+        overviewData.content[0].type === 'text' 
+          ? overviewData.content[0].text.substring(
+              overviewData.content[0].text.indexOf('{'),
+              overviewData.content[0].text.lastIndexOf('}') + 1
+            )
+          : '{}'
+      );
+
+      // Create temporary IDs for experiences
+      const experienceIds = resume.experience.map((_, i) => `exp_${i}`);
+
+      // Get experience IDs to include
+      const experienceResponse = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `You are a professional resume writer selecting which job experiences to include in a targeted resume.
+
+Job Description:
+${posting.rawText}
+
+Job Analysis:
+${posting.analysis?.roleDescription}
+Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
+Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
+Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
+
+Available Experiences:
+${resume.experience.map((exp, i) => `
+ID: ${experienceIds[i]}
+Company: ${exp.company}
+Description: ${exp.description}
+Skills: ${exp.skills.join(', ')}
+Accomplishments:
+${exp.accomplishments.join('\n')}
+`).join('\n')}
+
+Please respond with a JSON object containing:
+{
+  "selectedIds": ["Array of experience IDs to include, in order of relevance"]
+}`
+        })
+      });
+
+      if (!experienceResponse.ok) {
+        throw new Error('Failed to select experiences');
+      }
+
+      const experienceData = await experienceResponse.json();
+      const experienceJson = JSON.parse(
+        experienceData.content[0].type === 'text'
+          ? experienceData.content[0].text.substring(
+              experienceData.content[0].text.indexOf('{'),
+              experienceData.content[0].text.lastIndexOf('}') + 1
+            )
+          : '{}'
+      );
+
+      // Create a map of ID to experience for easy lookup
+      const experienceMap = new Map(
+        resume.experience.map((exp, i) => [experienceIds[i], exp])
+      );
+
+      // Generate closing
+      const closingResponse = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: `You are a professional resume writer. Write an 8-10 sentence closing that calls out specific experiences at specific jobs and correlates them to job requirements.
+
+Job Description:
+${posting.rawText}
+
+Job Analysis:
+${posting.analysis?.roleDescription}
+Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
+Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
+Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
+
+Selected Experiences:
+${experienceJson.selectedIds.map((id: string) => {
+  const exp = experienceMap.get(id);
+  if (!exp) return '';
+  return `
+Company: ${exp.company}
+Description: ${exp.description}
+Skills: ${exp.skills.join(', ')}
+Accomplishments:
+${exp.accomplishments.join('\n')}
+`;
+}).join('\n')}
+
+Please respond with a JSON object containing:
+{
+  "closing": "The 8-10 sentence closing paragraph"
+}`
+        })
+      });
+
+      if (!closingResponse.ok) {
+        throw new Error('Failed to generate closing');
+      }
+
+      const closingData = await closingResponse.json();
+      const closingJson = JSON.parse(
+        closingData.content[0].type === 'text'
+          ? closingData.content[0].text.substring(
+              closingData.content[0].text.indexOf('{'),
+              closingData.content[0].text.lastIndexOf('}') + 1
+            )
+          : '{}'
+      );
+
+      // Update posting with new resume sections
+      const updatedPosting = {
+        ...posting,
+        generatedResume: {
+          overview: overviewJson.overview,
+          selectedExperienceIds: experienceJson.selectedIds,
+          closing: closingJson.closing
+        }
+      };
+
+      await get().updatePosting(updatedPosting);
     } catch (error) {
+      console.error('Error generating resume:', error);
       set({ 
         isLoading: false, 
         error: error instanceof Error ? error.message : 'Failed to generate resume' 
@@ -230,5 +394,64 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
       }
     };
     await get().updatePosting(updatedPosting);
+  },
+
+  analyzePosting: async (posting: JobPosting) => {
+    try {
+      set({ isLoading: true, error: null });
+      
+      const prompt = `You are a professional resume writer analyzing a job posting. Please analyze this job posting and extract key information:
+
+Job Posting:
+${posting.rawText}
+
+Please respond with a JSON object containing:
+{
+  "title": "The exact job title",
+  "roleDescription": "A clear 2-3 sentence description of the role and its responsibilities",
+  "companyDescription": "A brief description of the company and its context",
+  "requiredSkills": ["Array of specific required skills, technologies, and qualifications"],
+  "optionalSkills": ["Array of preferred or optional skills"],
+  "successCriteria": ["Array of 3-5 key factors that would make a candidate successful in this role"]
+}`;
+
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to analyze posting: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = typeof data.content === 'string'
+        ? data.content
+        : data.content[0]?.type === 'text' 
+          ? data.content[0].text 
+          : '';
+
+      // Extract JSON from the response
+      const jsonStr = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+      const analysis = JSON.parse(jsonStr) as JobAnalysis;
+
+      // Update posting with analysis
+      const updatedPosting = {
+        ...posting,
+        analysis
+      };
+
+      await get().updatePosting(updatedPosting);
+    } catch (error) {
+      console.error('Error analyzing job posting:', error);
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to analyze job posting',
+        isLoading: false 
+      });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
   }
 })); 

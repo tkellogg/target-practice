@@ -9,8 +9,8 @@ export interface JobPosting {
   title: string;
   url: string;
   rawText: string;
-  generatedResume?: string;
   analysis?: JobAnalysis;
+  generatedResume?: GeneratedResume;
 }
 
 export interface JobAnalysis {
@@ -20,4 +20,10 @@ export interface JobAnalysis {
   requiredSkills: string[];
   optionalSkills: string[];
   successCriteria: string[];
+}
+
+export interface GeneratedResume {
+  overview: string;
+  closing: string;
+  selectedExperienceIds: string[];  // IDs of selected experience items
 } 
