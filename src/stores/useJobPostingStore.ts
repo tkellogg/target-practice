@@ -4,9 +4,10 @@
  */
 
 import { create } from 'zustand';
-import type { Resume } from '../types/Resume';
+import type { Resume, Experience } from '../types/Resume';
 import type { JobPosting, JobAnalysis } from '../types/JobPosting';
 import { getFileContent, saveFile, listFiles, parseRepoString } from '../utils/github';
+import { analyzeJobPostingPrompt, generateResumeOverviewPrompt, selectExperiencesPrompt, generateResumeClosingPrompt } from '../utils/prompts';
 
 interface JobPostingStore {
   selectedRepo: string | null;
@@ -73,8 +74,7 @@ function postingToXML(posting: JobPosting): string {
     doc.documentElement.appendChild(analysis);
   }
 
-  const serializer = new XMLSerializer();
-  return serializer.serializeToString(doc);
+  return new XMLSerializer().serializeToString(doc);
 }
 
 function parseXMLToPosting(xml: string, id: string): JobPosting | null {
@@ -167,44 +167,39 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
     }
   },
 
-  createPosting: async (posting: JobPosting) => {
-    const { selectedRepo } = get();
-    if (!selectedRepo) return;
-
-    set({ isLoading: true, error: null });
-
+  createPosting: async (posting) => {
     try {
+      set({ isLoading: true, error: null });
+      const { selectedRepo } = get();
+      if (!selectedRepo) return;
+
       const { owner, repo } = parseRepoString(selectedRepo);
       const xml = postingToXML(posting);
-      const path = `job-postings/${posting.id}.xml`;
-      
-      await saveFile(owner, repo, path, xml, `Create job posting for ${posting.company}`);
-      set(state => ({ 
-        postings: [...state.postings, posting],
-        isLoading: false 
-      }));
+      const date = new Date().toISOString().split('T')[0];
+      const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const path = `job-postings/${date}-${fileSlug}.xml`;
+
+      await saveFile(owner, repo, path, xml);
+      await get().loadPostings();
     } catch (error) {
       console.error('Error creating job posting:', error);
       set({ error: 'Failed to create job posting', isLoading: false });
     }
   },
 
-  updatePosting: async (posting: JobPosting) => {
-    const { selectedRepo } = get();
-    if (!selectedRepo) return;
-
-    set({ isLoading: true, error: null });
-
+  updatePosting: async (posting) => {
     try {
+      set({ isLoading: true, error: null });
+      const { selectedRepo } = get();
+      if (!selectedRepo) return;
+
       const { owner, repo } = parseRepoString(selectedRepo);
       const xml = postingToXML(posting);
-      const path = `job-postings/${posting.id}.xml`;
-      
-      await saveFile(owner, repo, path, xml, `Update job posting for ${posting.company}`);
-      set(state => ({
-        postings: state.postings.map(p => p.id === posting.id ? posting : p),
-        isLoading: false
-      }));
+      const date = posting.id.split('-').slice(0, 3).join('-');
+      const path = `job-postings/${date}-${posting.id.split('-').slice(3).join('-')}.xml`;
+
+      await saveFile(owner, repo, path, xml);
+      await get().loadPostings();
     } catch (error) {
       console.error('Error updating job posting:', error);
       set({ error: 'Failed to update job posting', isLoading: false });
@@ -220,24 +215,7 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `You are a professional resume writer. Write a 2-sentence overview that summarizes character traits & experience directly relevant to this job.
-
-Job Description:
-${posting.rawText}
-
-Job Analysis:
-${posting.analysis?.roleDescription}
-Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
-Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
-Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
-
-Resume Overview:
-${resume.personalInfo.description}
-
-Please respond with a JSON object containing:
-{
-  "overview": "The 2-sentence overview"
-}`
+          prompt: generateResumeOverviewPrompt(posting, resume)
         })
       });
 
@@ -263,31 +241,7 @@ Please respond with a JSON object containing:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `You are a professional resume writer selecting which job experiences to include in a targeted resume.
-
-Job Description:
-${posting.rawText}
-
-Job Analysis:
-${posting.analysis?.roleDescription}
-Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
-Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
-Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
-
-Available Experiences:
-${resume.experience.map((exp, i) => `
-ID: ${experienceIds[i]}
-Company: ${exp.company}
-Description: ${exp.description}
-Skills: ${exp.skills.join(', ')}
-Accomplishments:
-${exp.accomplishments.join('\n')}
-`).join('\n')}
-
-Please respond with a JSON object containing:
-{
-  "selectedIds": ["Array of experience IDs to include, in order of relevance"]
-}`
+          prompt: selectExperiencesPrompt(posting, resume, experienceIds)
         })
       });
 
@@ -310,39 +264,17 @@ Please respond with a JSON object containing:
         resume.experience.map((exp, i) => [experienceIds[i], exp])
       );
 
+      // Get selected experiences
+      const selectedExperiences = experienceJson.selectedIds
+        .map((id: string) => experienceMap.get(id))
+        .filter((exp: Experience | undefined): exp is Experience => exp !== undefined);
+
       // Generate closing
       const closingResponse = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `You are a professional resume writer. Write an 8-10 sentence closing that calls out specific experiences at specific jobs and correlates them to job requirements.
-
-Job Description:
-${posting.rawText}
-
-Job Analysis:
-${posting.analysis?.roleDescription}
-Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
-Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
-Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
-
-Selected Experiences:
-${experienceJson.selectedIds.map((id: string) => {
-  const exp = experienceMap.get(id);
-  if (!exp) return '';
-  return `
-Company: ${exp.company}
-Description: ${exp.description}
-Skills: ${exp.skills.join(', ')}
-Accomplishments:
-${exp.accomplishments.join('\n')}
-`;
-}).join('\n')}
-
-Please respond with a JSON object containing:
-{
-  "closing": "The 8-10 sentence closing paragraph"
-}`
+          prompt: generateResumeClosingPrompt(posting, selectedExperiences)
         })
       });
 
@@ -360,7 +292,7 @@ Please respond with a JSON object containing:
           : '{}'
       );
 
-      // Update posting with new resume sections
+      // Update posting with generated resume
       const updatedPosting = {
         ...posting,
         generatedResume: {
@@ -373,10 +305,7 @@ Please respond with a JSON object containing:
       await get().updatePosting(updatedPosting);
     } catch (error) {
       console.error('Error generating resume:', error);
-      set({ 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Failed to generate resume' 
-      });
+      set({ error: 'Failed to generate resume', isLoading: false });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -400,25 +329,10 @@ Please respond with a JSON object containing:
     try {
       set({ isLoading: true, error: null });
       
-      const prompt = `You are a professional resume writer analyzing a job posting. Please analyze this job posting and extract key information:
-
-Job Posting:
-${posting.rawText}
-
-Please respond with a JSON object containing:
-{
-  "title": "The exact job title",
-  "roleDescription": "A clear 2-3 sentence description of the role and its responsibilities",
-  "companyDescription": "A brief description of the company and its context",
-  "requiredSkills": ["Array of specific required skills, technologies, and qualifications"],
-  "optionalSkills": ["Array of preferred or optional skills"],
-  "successCriteria": ["Array of 3-5 key factors that would make a candidate successful in this role"]
-}`;
-
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ prompt: analyzeJobPostingPrompt(posting) })
       });
 
       if (!response.ok) {
