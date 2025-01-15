@@ -92,8 +92,11 @@ export function EditableSection({
           </Box>
           <EditableList
             items={skills}
-            title="skill"
+            title="Skills"
             onChange={onSkillsChange}
+            experience={experience}
+            type="skills"
+            collapsible={true}
           />
         </Box>
       )}
@@ -113,8 +116,11 @@ export function EditableSection({
           </Box>
           <EditableList
             items={accomplishments}
-            title="accomplishment"
+            title="Accomplishments"
             onChange={onAccomplishmentsChange}
+            experience={experience}
+            type="accomplishments"
+            collapsible={false}
           />
         </Box>
       )}
