@@ -25,6 +25,7 @@ export function parseXMLToResume(xml: string): Resume | null {
       company: job.querySelector('company')?.textContent || '',
       dates: job.querySelector('dates')?.textContent || '',
       description: job.querySelector('description')?.textContent || '',
+      city: job.querySelector('city')?.textContent || 'USA',
       positions: Array.from(job.querySelectorAll('positions > position')).map(pos => ({
         title: pos.textContent || '',
         startDate: pos.getAttribute('startDate') || '',
@@ -98,6 +99,7 @@ export function resumeToXML(resume: Resume): string {
     addElement(jobElem, 'company', job.company)
     addElement(jobElem, 'dates', job.dates)
     addElement(jobElem, 'description', job.description)
+    addElement(jobElem, 'city', job.city)
 
     const positions = doc.createElement('positions')
     job.positions.forEach(pos => {

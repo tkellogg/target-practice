@@ -27,6 +27,7 @@ export interface Experience {
   description: string
   accomplishments: string[]
   dates: string
+  city: string
   anecdotes?: Anecdote[]
 }
 

@@ -29,6 +29,7 @@ import { useExperienceConversationStore } from '../stores/useExperienceConversat
 import Markdown from 'markdown-to-jsx'
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog'
 import { EditableSection } from '../components/EditableSection'
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 
 function isPosition(obj: any): obj is Position {
   return obj && 
@@ -81,7 +82,8 @@ export const Editor = () => {
       }],
       skills: ['New Skill'],
       description: 'Description of role and responsibilities',
-      accomplishments: ['First accomplishment']
+      accomplishments: ['First accomplishment'],
+      city: 'USA'
     }
 
     handleUpdate(r => ({
@@ -312,7 +314,7 @@ export const Editor = () => {
       </Box>
 
       <Box mb={4}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }} data-section="experience">
           <Typography variant="h5">Experience</Typography>
           <IconButton onClick={addJob} size="small" sx={{ ml: 1 }}>
             <AddIcon />
@@ -372,6 +374,17 @@ export const Editor = () => {
                   }))}
                   variant="subtitle1"
                 />
+                <EditableText
+                  value={job.city || 'USA'}
+                  onChange={(value) => handleUpdate(r => ({
+                    ...r,
+                    experience: r.experience.map((j, i) => 
+                      i === index ? { ...j, city: value } : j
+                    )
+                  }))}
+                  variant="subtitle2"
+                  sx={{ color: 'text.secondary' }}
+                />
               </Box>
             </Box>
 
@@ -429,6 +442,27 @@ export const Editor = () => {
             />
           </Box>
         ))}
+        
+        {resume.experience.length > 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+            <IconButton
+              onClick={() => {
+                const experienceSection = document.querySelector('[data-section="experience"]')
+                experienceSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+              size="small"
+              sx={{
+                bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+                border: `1px solid ${theme.palette.divider}`,
+                '&:hover': {
+                  bgcolor: theme.palette.mode === 'light' ? 'grey.200' : 'grey.700',
+                }
+              }}
+            >
+              <KeyboardArrowUpIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
       </Box>
 
       {/* Projects section */}

@@ -209,7 +209,12 @@ export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote
 
   return `You are a professional resume writer. Based on these anecdotes about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
 
-Current Skills:
+RULES:
+1. DO NOT suggest any skills that are already in the current list
+2. Only suggest skills that are clearly implied by the anecdotes
+3. If you can't find 10 new skills, return fewer
+
+Current Skills (DO NOT INCLUDE THESE):
 ${experience.skills.join(', ')}
 
 Anecdotes:
@@ -217,7 +222,7 @@ ${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "skills": ["Array of suggested additional skills, maximum 10"]
+  "skills": ["Array of suggested NEW skills not already in the current list, maximum 10"]
 }`
 }
 
@@ -235,11 +240,11 @@ export function generateAccomplishmentsSuggestionsPrompt(experience: Experience,
 STRICT RULES:
 1. ONLY suggest accomplishments that are EXPLICITLY stated in the anecdotes
 2. NEVER make up numbers, metrics, or details that aren't directly mentioned
-3. If you can't find 3 explicit accomplishments, return fewer
-4. Prefer accomplishments with concrete metrics if available
+3. DO NOT suggest any accomplishments that are similar to the current list
+4. If you can't find 3 new explicit accomplishments, return fewer
 5. Each accomplishment must be directly traceable to specific text in the anecdotes
 
-Current Accomplishments:
+Current Accomplishments (DO NOT SUGGEST SIMILAR ONES):
 ${experience.accomplishments.join('\n')}
 
 Anecdotes:
@@ -247,6 +252,6 @@ ${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "accomplishments": ["Array of verifiable accomplishments found in the anecdotes, maximum 3"]
+  "accomplishments": ["Array of NEW verifiable accomplishments not already covered, maximum 3"]
 }`
 } 
