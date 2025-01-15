@@ -88,6 +88,13 @@ export const Editor = () => {
       ...r,
       experience: [...r.experience, newJob]
     }))
+
+    // Scroll to the new item after a short delay to ensure it's rendered
+    setTimeout(() => {
+      const items = document.querySelectorAll('[data-experience-item]')
+      const lastItem = items[items.length - 1]
+      lastItem?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
   }
 
   const addProject = () => {
@@ -316,6 +323,7 @@ export const Editor = () => {
           <Box 
             key={index} 
             mb={4} 
+            data-experience-item
             sx={{ 
               p: 2,
               pt: 5,
