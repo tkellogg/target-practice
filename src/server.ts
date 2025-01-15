@@ -46,6 +46,7 @@ app.post('/api/suggestions', async (req: Request, res: Response) => {
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1000,
+      temperature: 0.7,
       messages: [{
         role: 'user',
         content: generateConversationStartersPrompt(experience)

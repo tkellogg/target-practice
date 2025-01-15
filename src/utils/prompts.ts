@@ -168,17 +168,33 @@ Please respond with a JSON object containing:
  * Generates suggestions for augmenting a job description based on an anecdote
  */
 export function generateDescriptionSuggestionsPrompt(experience: Experience, anecdote: string): string {
-  return `You are a professional resume writer. Based on this anecdote about a job experience, suggest an improved job description that highlights key achievements and impact. Keep it to 2 sentences maximum.
+  const allAnecdotes = [
+    anecdote,
+    ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
+  ]
+
+  return `Write a concise job description that explains what the product/project was and your role in it.
+
+RULES:
+1. First explain what was being built (the product/project)
+2. Then explain your role in relation to that product
+3. Omit specific technologies and metrics
+4. Use active first person voice and past tense
+5. Maximum 1 short sentence
+6. Focus on the "what", not the "how"
+
+Example:
+"Build a real-time analytics platform for processing customer data. Lead architecture and development of the backend systems."
 
 Current Description:
 ${experience.description}
 
-Anecdote:
-${anecdote}
+Anecdotes:
+${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "description": "The suggested 2-sentence job description that incorporates key points from the anecdote"
+  "description": "Two sentences: what the product was + your role in it"
 }`
 }
 
@@ -186,13 +202,18 @@ Please respond with a JSON object containing:
  * Generates suggestions for additional skills based on an anecdote
  */
 export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote: string): string {
-  return `You are a professional resume writer. Based on this anecdote about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
+  const allAnecdotes = [
+    anecdote,
+    ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
+  ]
+
+  return `You are a professional resume writer. Based on these anecdotes about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
 
 Current Skills:
 ${experience.skills.join(', ')}
 
-Anecdote:
-${anecdote}
+Anecdotes:
+${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
@@ -204,16 +225,28 @@ Please respond with a JSON object containing:
  * Generates suggestions for additional accomplishments based on an anecdote
  */
 export function generateAccomplishmentsSuggestionsPrompt(experience: Experience, anecdote: string): string {
-  return `You are a professional resume writer. Based on this anecdote about a job experience, suggest additional specific, measurable accomplishments. Limit to 3 new accomplishments maximum.
+  const allAnecdotes = [
+    anecdote,
+    ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
+  ]
+
+  return `You are a professional resume writer helping extract VERIFIABLE accomplishments from job experience anecdotes. 
+
+STRICT RULES:
+1. ONLY suggest accomplishments that are EXPLICITLY stated in the anecdotes
+2. NEVER make up numbers, metrics, or details that aren't directly mentioned
+3. If you can't find 3 explicit accomplishments, return fewer
+4. Prefer accomplishments with concrete metrics if available
+5. Each accomplishment must be directly traceable to specific text in the anecdotes
 
 Current Accomplishments:
 ${experience.accomplishments.join('\n')}
 
-Anecdote:
-${anecdote}
+Anecdotes:
+${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "accomplishments": ["Array of suggested additional accomplishments, maximum 3"]
+  "accomplishments": ["Array of verifiable accomplishments found in the anecdotes, maximum 3"]
 }`
 } 
