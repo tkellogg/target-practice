@@ -51,9 +51,19 @@ export function EditableSection({
   return (
     <Box>
       {title && (
-        <Typography variant="h6" gutterBottom>
-          {title}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <Typography variant="h6" sx={{ flex: 1 }}>
+            {title}
+          </Typography>
+          {hasAnecdotes && (
+            <AnecdoteAugmentation
+              experience={experience!}
+              type="description"
+              anecdote={latestAnecdote}
+              onAccept={(suggestions) => handleAcceptSuggestions('description', suggestions)}
+            />
+          )}
+        </Box>
       )}
 
       {description !== undefined && onDescriptionChange && (
@@ -92,10 +102,8 @@ export function EditableSection({
           </Box>
           <EditableList
             items={skills}
-            title="Skills"
+            title="skill"
             onChange={onSkillsChange}
-            experience={experience}
-            type="skills"
             collapsible={true}
           />
         </Box>
@@ -116,10 +124,8 @@ export function EditableSection({
           </Box>
           <EditableList
             items={accomplishments}
-            title="Accomplishments"
+            title="accomplishment"
             onChange={onAccomplishmentsChange}
-            experience={experience}
-            type="accomplishments"
             collapsible={false}
           />
         </Box>

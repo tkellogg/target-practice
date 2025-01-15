@@ -106,6 +106,33 @@ app.post('/api/summarize', async (req: Request, res: Response) => {
   }
 })
 
+app.post('/api/analyze', async (req: Request, res: Response) => {
+  try {
+    const { prompt } = req.body;
+    
+    // Debug log the request
+    console.log('Received prompt:', prompt);
+    
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 1000,
+      temperature: 0.7,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    });
+
+    const content = response.content[0].type === 'text' ? response.content[0].text : '';
+    console.log('Generated response:', content); // Per .cursorrules: Log everything on backend
+    
+    res.json({ content: response.content });
+  } catch (error) {
+    console.error('Error analyzing with Anthropic:', error);
+    res.status(500).json({ error: 'Failed to analyze with Anthropic' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`)
 }) 

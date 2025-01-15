@@ -20,19 +20,15 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
-import { Experience } from '../types/Resume'
-import { AnecdoteAugmentation } from './AnecdoteAugmentation'
 
 interface Props {
   items: string[]
   title: string
   onChange: (items: string[]) => void
-  experience?: Experience
-  type?: 'skills' | 'accomplishments'
   collapsible?: boolean
 }
 
-export function EditableList({ items, title, onChange, experience, type, collapsible = false }: Props) {
+export function EditableList({ items, title, onChange, collapsible = false }: Props) {
   const [newItem, setNewItem] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -54,27 +50,9 @@ export function EditableList({ items, title, onChange, experience, type, collaps
     }
   }
 
-  const hasAnecdotes = experience?.anecdotes && experience.anecdotes.length > 0
-  const latestAnecdote = hasAnecdotes ? experience!.anecdotes![0].content : ''
-
-  const handleAcceptSuggestions = (suggestions: string[]) => {
-    onChange([...items, ...suggestions])
-  }
-
   if (!collapsible) {
     return (
       <Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ flex: 1 }}>{title}</Typography>
-          {hasAnecdotes && type && (
-            <AnecdoteAugmentation
-              experience={experience!}
-              type={type}
-              anecdote={latestAnecdote}
-              onAccept={handleAcceptSuggestions}
-            />
-          )}
-        </Box>
         <List dense>
           {items.map((item, index) => (
             <ListItem
@@ -109,26 +87,16 @@ export function EditableList({ items, title, onChange, experience, type, collaps
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-          <IconButton 
-            size="small" 
-            onClick={() => setIsExpanded(!isExpanded)}
-            sx={{ mr: 1 }}
-          >
-            {isExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-          </IconButton>
-          <Typography variant="subtitle2" sx={{ flex: 1 }}>
-            {!isExpanded ? items.join(', ') : title}
-          </Typography>
-          {hasAnecdotes && type && (
-            <AnecdoteAugmentation
-              experience={experience!}
-              type={type}
-              anecdote={latestAnecdote}
-              onAccept={handleAcceptSuggestions}
-            />
-          )}
-        </Box>
+        <IconButton 
+          size="small" 
+          onClick={() => setIsExpanded(!isExpanded)}
+          sx={{ mr: 1 }}
+        >
+          {isExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+        </IconButton>
+        <Typography variant="subtitle2" sx={{ flex: 1 }}>
+          {!isExpanded ? items.join(', ') : title}
+        </Typography>
       </Box>
 
       {isExpanded && (
