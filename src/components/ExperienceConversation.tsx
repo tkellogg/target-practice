@@ -3,7 +3,7 @@
  * See LICENSE file for license information.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Box, Button, Paper, Typography, IconButton, TextField } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useExperienceConversationStore } from '../stores/useExperienceConversationStore';
@@ -23,7 +23,9 @@ interface Props {
 export const ExperienceConversation = ({ experience, onClose }: Props) => {
   const [inputValue, setInputValue] = useState('');
   const [summary, setSummary] = useState('');
-  const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const { messages, suggestions, isLoading, addMessage, setSuggestions, setLoading, reset } = useExperienceConversationStore();
   const updateResume = useResumeStore(state => state.updateResume);
 
@@ -73,12 +75,39 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
     generateSuggestions();
   }, [experience, hasLoaded]); // Add hasLoaded to dependencies
 
+  // Function to check if scrolled to bottom
+  const isScrolledToBottom = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return false;
+    
+    const threshold = 50; // pixels from bottom to consider "at bottom"
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  };
+
+  // Function to scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Monitor scroll position to determine if we should auto-scroll
+  const handleScroll = () => {
+    setShouldAutoScroll(isScrolledToBottom());
+  };
+
+  // Auto-scroll when messages change
+  useEffect(() => {
+    if (shouldAutoScroll) {
+      scrollToBottom();
+    }
+  }, [messages, shouldAutoScroll]);
+
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
     
     addMessage('user', content);
     setInputValue('');
     setLoading(true);
+    scrollToBottom(); // Always scroll to bottom when user sends a message
 
     try {
       const response = await fetch('/api/conversation', {
@@ -229,11 +258,15 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
         {/* Right pane - Conversation */}
         <Box sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column' }}>
           {/* Messages area */}
-          <Box sx={{ flex: 1, overflow: 'auto', mb: 2 }}>
+          <Box 
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            sx={{ flex: 1, overflow: 'auto', mb: 2 }}
+          >
             {messages.map((msg, i) => (
               <Box key={i} sx={{ mb: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary">
-                  {msg.role === 'user' ? 'You' : 'AI'}:
+                  {msg.role === 'user' ? (i === 0 ? 'Ice Breaker' : 'You') : 'AI'}:
                 </Typography>
                 {msg.role === 'user' ? (
                   <Typography variant="body1">{msg.content}</Typography>
@@ -255,6 +288,7 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
                 )}
               </Box>
             ))}
+            <div ref={messagesEndRef} /> {/* Scroll anchor */}
             {isLoading && (
               <Typography color="text.secondary" sx={{ fontStyle: 'italic' }}>
                 Thinking...
@@ -291,7 +325,7 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
+              placeholder="Just talk. No need to answer questions. Take it where you want..."
               sx={{ flex: 1 }}
               disabled={isLoading}
             />
