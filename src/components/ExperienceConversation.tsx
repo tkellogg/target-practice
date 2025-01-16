@@ -268,24 +268,20 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
                 <Typography variant="subtitle2" color="text.secondary">
                   {msg.role === 'user' ? (i === 0 ? 'Ice Breaker' : 'You') : 'AI'}:
                 </Typography>
-                {msg.role === 'user' ? (
-                  <Typography variant="body1">{msg.content}</Typography>
-                ) : (
-                  <Box sx={{ 
-                    '& p': { my: 1 },
-                    '& ul, & ol': { my: 1, pl: 3 },
-                    '& li': { my: 0.5 },
-                    '& code': {
-                      px: 1,
-                      py: 0.5,
-                      borderRadius: 1,
-                      bgcolor: 'grey.100',
-                      fontFamily: 'monospace'
-                    }
-                  }}>
-                    <Markdown>{msg.content}</Markdown>
-                  </Box>
-                )}
+                <Box sx={{ 
+                  '& p': { my: 1 },
+                  '& ul, & ol': { my: 1, pl: 3 },
+                  '& li': { my: 0.5 },
+                  '& code': {
+                    px: 1,
+                    py: 0.5,
+                    borderRadius: 1,
+                    bgcolor: 'grey.100',
+                    fontFamily: 'monospace'
+                  }
+                }}>
+                  <Markdown>{msg.content}</Markdown>
+                </Box>
               </Box>
             ))}
             <div ref={messagesEndRef} /> {/* Scroll anchor */}
