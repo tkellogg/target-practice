@@ -5,9 +5,10 @@
 
 import { useState, useEffect } from 'react';
 import { useJobPostingStore } from '../stores/useJobPostingStore';
-import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography, CircularProgress } from '@mui/material';
+import { Button, TextField, Dialog, DialogTitle, DialogContent, DialogActions, Box, Typography, CircularProgress, Container } from '@mui/material';
 import type { JobPosting } from '../types/JobPosting';
 import { JobPostEditor } from '../components/JobPostEditor';
+import { MenuBar } from '../components/MenuBar';
 
 export function JobPostings() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -85,82 +86,87 @@ export function JobPostings() {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5">Job Postings</Typography>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          onClick={() => setIsDialogOpen(true)}
-          disabled={isLoading}
-        >
-          Add Job Posting
-        </Button>
-      </Box>
-      
-      {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
-
-      {postings.length === 0 ? (
-        <Typography sx={{ textAlign: 'center', mt: 4 }}>
-          No job postings yet. Click "Add Job Posting" to create one.
-        </Typography>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {postings.map(posting => (
-            <Button
-              key={posting.id}
-              variant="outlined"
-              color="primary"
-              onClick={() => setSelectedPosting(posting)}
-              sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+    <>
+      <MenuBar />
+      <Container maxWidth="lg">
+        <Box p={4}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h5">Job Postings</Typography>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={() => setIsDialogOpen(true)}
+              disabled={isLoading}
             >
-              {posting.company} — {posting.title}
+              Add Job Posting
             </Button>
-          ))}
-        </Box>
-      )}
+          </Box>
+          
+          {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
 
-      <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)}>
-        <DialogTitle>Add Job Posting</DialogTitle>
-        <DialogContent>
-          <TextField
-            label="Company"
-            value={newPosting.company || ''}
-            onChange={e => setNewPosting(prev => ({ ...prev, company: e.target.value }))}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Title"
-            value={newPosting.title || ''}
-            onChange={e => setNewPosting(prev => ({ ...prev, title: e.target.value }))}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="URL"
-            value={newPosting.url || ''}
-            onChange={e => setNewPosting(prev => ({ ...prev, url: e.target.value }))}
-            fullWidth
-            margin="normal"
-          />
-          <TextField
-            label="Job Description"
-            value={newPosting.rawText || ''}
-            onChange={e => setNewPosting(prev => ({ ...prev, rawText: e.target.value }))}
-            fullWidth
-            multiline
-            rows={4}
-            margin="normal"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreate} color="primary" disabled={isLoading}>
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+          {postings.length === 0 ? (
+            <Typography sx={{ textAlign: 'center', mt: 4 }}>
+              No job postings yet. Click "Add Job Posting" to create one.
+            </Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {postings.map(posting => (
+                <Button
+                  key={posting.id}
+                  variant="outlined"
+                  color="primary"
+                  onClick={() => setSelectedPosting(posting)}
+                  sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
+                >
+                  {posting.company} — {posting.title}
+                </Button>
+              ))}
+            </Box>
+          )}
+
+          <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)}>
+            <DialogTitle>Add Job Posting</DialogTitle>
+            <DialogContent>
+              <TextField
+                label="Company"
+                value={newPosting.company || ''}
+                onChange={e => setNewPosting(prev => ({ ...prev, company: e.target.value }))}
+                fullWidth
+                margin="normal"
+              />
+              <TextField
+                label="Title"
+                value={newPosting.title || ''}
+                onChange={e => setNewPosting(prev => ({ ...prev, title: e.target.value }))}
+                fullWidth
+                margin="normal"
+              />
+              <TextField
+                label="URL"
+                value={newPosting.url || ''}
+                onChange={e => setNewPosting(prev => ({ ...prev, url: e.target.value }))}
+                fullWidth
+                margin="normal"
+              />
+              <TextField
+                label="Job Description"
+                value={newPosting.rawText || ''}
+                onChange={e => setNewPosting(prev => ({ ...prev, rawText: e.target.value }))}
+                fullWidth
+                multiline
+                rows={4}
+                margin="normal"
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleCreate} color="primary" disabled={isLoading}>
+                Create
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      </Container>
+    </>
   );
 } 
