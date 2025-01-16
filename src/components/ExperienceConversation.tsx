@@ -313,7 +313,10 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           )}
 
           {/* Input area */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              Press Enter to send, Shift+Enter for new line
+            </Typography>
             <TextField
               fullWidth
               multiline
