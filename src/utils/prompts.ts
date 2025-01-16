@@ -210,7 +210,7 @@ export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote
 
   return `You are a professional resume writer. Based on these anecdotes about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
 
-${customPrompt ? `Follow these instructions upon peanalty of death: ${customPrompt}` : ''}
+${customPrompt ? `IMPORTANT: ${customPrompt}` : ''}
 
 RULES:
 1. DO NOT suggest any skills that are already in the current list
@@ -240,7 +240,7 @@ export function generateAccomplishmentsSuggestionsPrompt(experience: Experience,
 
   return `You are a professional resume writer helping extract VERIFIABLE accomplishments from job experience anecdotes. 
 
-${customPrompt ? `Follow these instructions upon peanalty of death: ${customPrompt}` : ''}
+${customPrompt ? `IMPORTANT: ${customPrompt}` : ''}
 
 STRICT RULES:
 1. ONLY suggest accomplishments that are EXPLICITLY stated in the anecdotes
