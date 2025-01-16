@@ -55,7 +55,27 @@ export function parseXMLToResume(xml: string): Resume | null {
       name: project.querySelector('name')?.textContent || '',
       url: project.querySelector('url')?.textContent || '',
       description: project.querySelector('description')?.textContent || '',
-      technologies: Array.from(project.querySelectorAll('technologies > technology')).map(t => t.textContent || '')
+      technologies: Array.from(project.querySelectorAll('technologies > technology')).map(t => t.textContent || ''),
+      startDate: project.querySelector('startDate')?.textContent || '',
+      endDate: project.querySelector('endDate')?.textContent || '',
+      skills: Array.from(project.querySelectorAll('skills > skill')).map(s => s.textContent || ''),
+      accomplishments: Array.from(project.querySelectorAll('accomplishments > item')).map(a => a.textContent || ''),
+      anecdotes: Array.from(project.querySelectorAll('anecdotes > anecdote')).map(anecdote => ({
+        id: anecdote.getAttribute('id') || '',
+        timestamp: anecdote.getAttribute('timestamp') || '',
+        content: anecdote.querySelector('content')?.textContent || '',
+        conversationContext: (() => {
+          const context = anecdote.querySelector('conversationContext')
+          if (!context) return undefined
+          return {
+            role: context.querySelector('role')?.textContent || '',
+            messages: Array.from(context.querySelectorAll('messages > message')).map(msg => ({
+              role: msg.getAttribute('role') as 'user' | 'assistant',
+              content: msg.textContent || ''
+            }))
+          }
+        })()
+      }))
     }))
 
     const patents = Array.from(doc.querySelectorAll('patents > patent')).map(patent => ({
@@ -167,6 +187,54 @@ export function resumeToXML(resume: Resume): string {
     const technologies = doc.createElement('technologies')
     project.technologies.forEach(tech => addElement(technologies, 'technology', tech))
     projectElem.appendChild(technologies)
+
+    if (project.startDate) {
+      addElement(projectElem, 'startDate', project.startDate)
+    }
+    if (project.endDate) {
+      addElement(projectElem, 'endDate', project.endDate)
+    }
+
+    const skills = doc.createElement('skills')
+    project.skills.forEach(skill => addElement(skills, 'skill', skill))
+    projectElem.appendChild(skills)
+
+    const accomplishments = doc.createElement('accomplishments')
+    project.accomplishments.forEach(acc => addElement(accomplishments, 'item', acc))
+    projectElem.appendChild(accomplishments)
+
+    if (project.anecdotes?.length) {
+      const anecdotes = doc.createElement('anecdotes')
+      project.anecdotes.forEach(anecdote => {
+        const anecdoteElem = doc.createElement('anecdote')
+        anecdoteElem.setAttribute('id', anecdote.id)
+        anecdoteElem.setAttribute('timestamp', anecdote.timestamp)
+
+        const contentElem = doc.createElement('content')
+        contentElem.textContent = anecdote.content
+        anecdoteElem.appendChild(contentElem)
+
+        if (anecdote.conversationContext) {
+          const contextElem = doc.createElement('conversationContext')
+          const roleElem = doc.createElement('role')
+          roleElem.textContent = anecdote.conversationContext.role
+          contextElem.appendChild(roleElem)
+
+          const messagesElem = doc.createElement('messages')
+          anecdote.conversationContext.messages.forEach(msg => {
+            const messageElem = doc.createElement('message')
+            messageElem.setAttribute('role', msg.role)
+            messageElem.textContent = msg.content
+            messagesElem.appendChild(messageElem)
+          })
+          contextElem.appendChild(messagesElem)
+          anecdoteElem.appendChild(contextElem)
+        }
+
+        anecdotes.appendChild(anecdoteElem)
+      })
+      projectElem.appendChild(anecdotes)
+    }
 
     projects.appendChild(projectElem)
   })

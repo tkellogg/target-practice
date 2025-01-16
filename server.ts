@@ -55,9 +55,11 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
 })
 
 app.post('/api/conversation', async (req: Request, res: Response) => {
-  const { messages, experience } = req.body as {
-    messages: Array<{ role: 'user' | 'assistant', content: string }>,
-    experience: Experience
+  const { messages, experience, project } = req.body
+  const item = experience || project
+
+  if (!item) {
+    return res.status(400).json({ error: 'No experience or project provided' })
   }
 
   try {
@@ -65,8 +67,8 @@ app.post('/api/conversation', async (req: Request, res: Response) => {
       model: CLAUDE_MODEL,
       max_tokens: 1024,
       temperature: 0.7,
-      system: 'You are an expert interviewer helping a user expand on their job experiences with insightful follow-up questions',
-      messages: generateConversationPrompt(experience, messages)
+      system: 'You are an expert interviewer helping a user expand on their experiences with insightful follow-up questions',
+      messages: generateConversationPrompt(item, messages)
     })
 
     res.json({ response: response.content[0].type === 'text' ? response.content[0].text : '' })
@@ -78,14 +80,19 @@ app.post('/api/conversation', async (req: Request, res: Response) => {
 
 app.post('/api/suggestions', async (req: Request, res: Response) => {
   try {
-    const { experience } = req.body
+    const { experience, project } = req.body
+    const item = experience || project
     
+    if (!item) {
+      throw new Error('No experience or project provided')
+    }
+
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 1000,
       messages: [{
         role: 'user',
-        content: generateConversationStartersPrompt(experience)
+        content: generateConversationStartersPrompt(item)
       }]
     })
 
@@ -110,9 +117,11 @@ app.post('/api/suggestions', async (req: Request, res: Response) => {
 })
 
 app.post('/api/summarize', async (req: Request, res: Response) => {
-  const { messages, experience } = req.body as {
-    messages: Array<{ role: 'user' | 'assistant', content: string }>,
-    experience: Experience
+  const { messages, experience, project } = req.body
+  const item = experience || project
+
+  if (!item) {
+    return res.status(400).json({ error: 'No experience or project provided' })
   }
 
   try {
@@ -120,11 +129,11 @@ app.post('/api/summarize', async (req: Request, res: Response) => {
       model: CLAUDE_MODEL,
       max_tokens: 1024,
       temperature: 0.7,
-      system: 'You are an expert at summarizing job experiences into clear, impactful anecdotes. Take the conversation and create a concise but detailed summary that captures the key metrics, challenges, solutions, and impacts discussed.',
+      system: 'You are an expert at summarizing experiences into clear, impactful anecdotes. Take the conversation and create a concise but detailed summary that captures the key metrics, challenges, solutions, and impacts discussed.',
       messages: [
         {
           role: 'user',
-          content: summarizeConversationPrompt(experience, messages)
+          content: summarizeConversationPrompt(item, messages)
         }
       ]
     })

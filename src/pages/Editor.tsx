@@ -31,6 +31,7 @@ import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog'
 import { EditableSection } from '../components/EditableSection'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
+import { ProjectConversation } from '../components/ProjectConversation'
 
 function isPosition(obj: any): obj is Position {
   return obj && 
@@ -52,7 +53,7 @@ function isExperience(obj: any): obj is Experience {
 
 export const Editor = () => {
   const { resume, isLoading, error, updateResume } = useResumeStore()
-  const { isOpen, currentExperience } = useExperienceConversationStore();
+  const { isOpen, experience, project } = useExperienceConversationStore();
   const theme = useTheme()
   const [editingItem, setEditingItem] = useState<{
     type: 'skill' | 'accomplishment'
@@ -107,7 +108,12 @@ export const Editor = () => {
         name: 'New Project',
         url: 'https://',
         description: 'Project description',
-        technologies: ['Technology']
+        technologies: ['New Technology'],
+        skills: ['New Skill'],
+        accomplishments: ['First accomplishment'],
+        startDate: 'MONTH YEAR',
+        endDate: 'PRESENT',
+        anecdotes: []
       }]
     }))
   }
@@ -506,7 +512,16 @@ export const Editor = () => {
             </Box>
 
             {resume.projects.map((project, index) => (
-              <Box key={index} mb={2}>
+              <Box 
+                key={index} 
+                mb={2}
+                sx={{ 
+                  p: 2,
+                  bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+                  border: `1px solid ${theme.palette.divider}`,
+                  position: 'relative'
+                }}
+              >
                 <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
                   <Box sx={{ flex: 1 }}>
                     <EditableText
@@ -528,24 +543,30 @@ export const Editor = () => {
                         )
                       }))}
                     />
-                    <EditableText
-                      value={project.description}
-                      onChange={(value) => handleUpdate(r => ({
+                    <EditableSection
+                      title=""
+                      description={project.description}
+                      skills={project.skills}
+                      accomplishments={project.accomplishments}
+                      onDescriptionChange={(value) => handleUpdate(r => ({
                         ...r,
                         projects: r.projects.map((p, i) => 
                           i === index ? { ...p, description: value } : p
                         )
                       }))}
-                      multiline
-                    />
-                    <EditableText
-                      value={project.technologies.join(', ')}
-                      onChange={(value) => handleUpdate(r => ({
+                      onSkillsChange={(value) => handleUpdate(r => ({
                         ...r,
                         projects: r.projects.map((p, i) => 
-                          i === index ? { ...p, technologies: value.split(',').map(t => t.trim()) } : p
+                          i === index ? { ...p, skills: value } : p
                         )
                       }))}
+                      onAccomplishmentsChange={(value) => handleUpdate(r => ({
+                        ...r,
+                        projects: r.projects.map((p, i) => 
+                          i === index ? { ...p, accomplishments: value } : p
+                        )
+                      }))}
+                      experience={project}
                     />
                   </Box>
                   <IconButton onClick={() => handleDeleteProject(index)} size="small">
@@ -596,7 +617,7 @@ export const Editor = () => {
             ))}
           </Box>
 
-          {isOpen && currentExperience && (
+          {isOpen && (experience || project) && (
             <Dialog
               open={isOpen}
               fullWidth
@@ -610,12 +631,21 @@ export const Editor = () => {
                 }
               }}
             >
-              <ExperienceConversation
-                experience={currentExperience}
-                onClose={() => {
-                  useExperienceConversationStore.getState().reset();
-                }}
-              />
+              {experience ? (
+                <ExperienceConversation
+                  experience={experience}
+                  onClose={() => {
+                    useExperienceConversationStore.getState().reset();
+                  }}
+                />
+              ) : (
+                <ProjectConversation
+                  project={project!}
+                  onClose={() => {
+                    useExperienceConversationStore.getState().reset();
+                  }}
+                />
+              )}
             </Dialog>
           )}
 

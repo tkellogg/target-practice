@@ -6,14 +6,14 @@
 import React, { useState } from 'react'
 import { IconButton, Popover, Box, Typography, Button, CircularProgress, List, ListItem, Checkbox, TextField } from '@mui/material'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
-import { Experience } from '../types/Resume'
+import { Experience, Project } from '../types/Resume'
 import { generateDescriptionSuggestionsPrompt, generateSkillsSuggestionsPrompt, generateAccomplishmentsSuggestionsPrompt } from '../utils/prompts'
 import { callAnthropicAPI } from '../utils/anthropic'
 
 type SuggestionType = 'description' | 'skills' | 'accomplishments'
 
 type Props = {
-  experience: Experience
+  experience: Experience | Project
   type: SuggestionType
   anecdote: string
   onAccept: (suggestions: string[]) => void
@@ -25,10 +25,12 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([])
   const [customPrompt, setCustomPrompt] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget)
     setLoading(true)
+    setError(null)
 
     let prompt: string
     switch (type) {
@@ -47,18 +49,14 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
       const response = await callAnthropicAPI(prompt)
       // Extract JSON from the response
       const json = JSON.parse(response.substring(response.indexOf('{'), response.lastIndexOf('}') + 1))
-      
-      // Extract suggestions based on type
-      const newSuggestions = type === 'description' 
-        ? [json.description]
-        : type === 'skills'
-          ? json.skills
-          : json.accomplishments
-
-      setSuggestions(newSuggestions)
+      if (!json.suggestions || !Array.isArray(json.suggestions)) {
+        throw new Error('Invalid response format')
+      }
+      setSuggestions(json.suggestions)
       setSelectedSuggestions([])
     } catch (error) {
-      console.error('Error generating suggestions:', error)
+      console.error('Failed to get suggestions:', error)
+      setError('Failed to generate suggestions. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -68,34 +66,19 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
     setAnchorEl(null)
     setSuggestions([])
     setSelectedSuggestions([])
+    setError(null)
   }
 
   const handleAccept = () => {
-    onAccept(type === 'description' ? suggestions : selectedSuggestions)
+    onAccept(selectedSuggestions)
     handleClose()
-  }
-
-  const handleRegenerate = () => {
-    setSuggestions([])
-    setSelectedSuggestions([])
-    handleClick({ currentTarget: anchorEl! } as React.MouseEvent<HTMLButtonElement>)
-  }
-
-  const handleToggleSuggestion = (suggestion: string) => {
-    setSelectedSuggestions(prev => {
-      if (prev.includes(suggestion)) {
-        return prev.filter(s => s !== suggestion)
-      } else {
-        return [...prev, suggestion]
-      }
-    })
   }
 
   const open = Boolean(anchorEl)
 
   return (
     <>
-      <IconButton onClick={handleClick} size="small" sx={{ ml: 1 }} title="Generate suggestions from anecdote">
+      <IconButton onClick={handleClick} size="small" sx={{ ml: 1 }}>
         <AutoFixHighIcon fontSize="small" />
       </IconButton>
 
@@ -117,7 +100,9 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
             <Box display="flex" justifyContent="center" p={2}>
               <CircularProgress size={24} />
             </Box>
-          ) : suggestions.length > 0 ? (
+          ) : error ? (
+            <Typography color="error">{error}</Typography>
+          ) : suggestions && suggestions.length > 0 ? (
             <>
               <Typography variant="subtitle2" gutterBottom>
                 Suggested {type === 'description' ? 'Description' : type === 'skills' ? 'Skills' : 'Accomplishments'}:
@@ -138,85 +123,78 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
                   }}>
                     {experience.description}
                   </Typography>
-                  
+
                   <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                     Suggested:
                   </Typography>
-                  <Typography variant="body2" sx={{ 
-                    mb: 2,
-                    bgcolor: theme => theme.palette.mode === 'light' ? '#e6ffec' : '#1f3420',
-                    color: theme => theme.palette.mode === 'light' ? '#1a7f37' : '#aff5b4',
-                    p: 1,
-                    borderRadius: '2px'
-                  }}>
-                    {suggestions[0]}
-                  </Typography>
-
-                  <Box display="flex" justifyContent="space-between">
-                    <Button onClick={handleClose} color="inherit" size="small">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAccept} color="primary" size="small">
-                      Accept
-                    </Button>
-                  </Box>
-                </Box>
-              ) : (
-                // For skills and accomplishments, show as checkable list
-                <>
-                  <List dense>
+                  <List>
                     {suggestions.map((suggestion, index) => (
-                      <ListItem key={index} dense>
+                      <ListItem key={index} sx={{ px: 0 }}>
                         <Checkbox
-                          edge="start"
                           checked={selectedSuggestions.includes(suggestion)}
-                          onChange={() => handleToggleSuggestion(suggestion)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedSuggestions([suggestion]) // Only allow one description
+                            } else {
+                              setSelectedSuggestions([])
+                            }
+                          }}
                         />
                         <Typography variant="body2">{suggestion}</Typography>
                       </ListItem>
                     ))}
                   </List>
-                  <Box display="flex" justifyContent="space-between" mt={1}>
-                    <Button onClick={handleClose} color="inherit" size="small">
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleAccept}
-                      color="primary"
-                      size="small"
-                      disabled={selectedSuggestions.length === 0}
-                    >
-                      Accept Selected
-                    </Button>
-                  </Box>
-                </>
+                </Box>
+              ) : (
+                // For skills and accomplishments, show checkboxes
+                <List>
+                  {suggestions.map((suggestion, index) => (
+                    <ListItem key={index} sx={{ px: 0 }}>
+                      <Checkbox
+                        checked={selectedSuggestions.includes(suggestion)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedSuggestions([...selectedSuggestions, suggestion])
+                          } else {
+                            setSelectedSuggestions(selectedSuggestions.filter(s => s !== suggestion))
+                          }
+                        }}
+                      />
+                      <Typography variant="body2">{suggestion}</Typography>
+                    </ListItem>
+                  ))}
+                </List>
               )}
 
-              <Button
-                onClick={handleRegenerate}
-                color="inherit"
-                size="small"
-                fullWidth
-                sx={{ mt: 1 }}
-              >
-                Regenerate Suggestions
-              </Button>
-              <TextField
-                fullWidth
-                size="small"
-                placeholder="Add custom instructions (optional)"
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleRegenerate()
-                  }
-                }}
-                sx={{ mt: 1 }}
-              />
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                <Button onClick={handleClose} sx={{ mr: 1 }}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleAccept}
+                  disabled={selectedSuggestions.length === 0}
+                >
+                  Accept Selected
+                </Button>
+              </Box>
             </>
-          ) : null}
+          ) : (
+            <Typography>No suggestions available. Try adjusting the anecdote.</Typography>
+          )}
+
+          {/* Custom prompt input */}
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Custom prompt (optional)"
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              multiline
+              rows={2}
+            />
+          </Box>
         </Box>
       </Popover>
     </>

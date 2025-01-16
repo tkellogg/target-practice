@@ -4,7 +4,7 @@
  */
 
 import type { JobPosting } from '../types/JobPosting'
-import type { Experience, Resume } from '../types/Resume'
+import type { Experience, Project, Resume } from '../types/Resume'
 
 type Message = {
   role: 'user' | 'assistant'
@@ -165,19 +165,21 @@ Please respond with a JSON object containing:
 }
 
 /**
- * Generates suggestions for augmenting a job description based on an anecdote
+ * Generates suggestions for augmenting a description based on an anecdote
  */
-export function generateDescriptionSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
+export function generateDescriptionSuggestionsPrompt(item: Experience | Project, anecdote: string, customPrompt?: string): string {
   const allAnecdotes = [
     anecdote,
-    ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
+    ...(item.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
   ]
 
-  return `Write a concise job description that explains what the product/project was and your role in it.
+  const isExperience = 'company' in item
+
+  return `Write a concise ${isExperience ? 'job' : 'project'} description that explains what the ${isExperience ? 'product/project was and your role in it' : 'project does and your contributions to it'}.
 
 RULES:
 1. First explain what was being built (the product/project)
-2. Then explain your role in relation to that product
+2. Then explain your role in relation to that ${isExperience ? 'product' : 'project'}
 3. Omit specific technologies and metrics
 4. Use active first person voice and past tense
 5. Maximum 1 short sentence
@@ -185,30 +187,32 @@ RULES:
 ${customPrompt ? `7. Additional instructions: ${customPrompt}` : ''}
 
 Example:
-"Build a real-time analytics platform for processing customer data. Lead architecture and development of the backend systems."
+"${isExperience ? 'Build a real-time analytics platform for processing customer data. Lead architecture and development of the backend systems.' : 'Created an open-source library for handling complex data structures. Designed the core architecture and implemented key features.'}"
 
 Current Description:
-${experience.description}
+${item.description}
 
 Anecdotes:
 ${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "description": "Two sentences: what the product was + your role in it"
+  "suggestions": ["One sentence: what the ${isExperience ? 'product' : 'project'} was + your role in it"]
 }`
 }
 
 /**
  * Generates suggestions for additional skills based on an anecdote
  */
-export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
+export function generateSkillsSuggestionsPrompt(item: Experience | Project, anecdote: string, customPrompt?: string): string {
   const allAnecdotes = [
     anecdote,
-    ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
+    ...(item.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
   ]
 
-  return `You are a professional resume writer. Based on these anecdotes about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
+  const isExperience = 'company' in item
+
+  return `You are a professional resume writer. Based on these anecdotes about a ${isExperience ? 'job experience' : 'project'}, suggest additional skills that should be listed. Limit to 10 new skills maximum.
 
 ${customPrompt ? `IMPORTANT: ${customPrompt}` : ''}
 
@@ -218,27 +222,29 @@ RULES:
 3. If you can't find 10 new skills, return fewer
 
 Current Skills (DO NOT INCLUDE THESE):
-${experience.skills.join(', ')}
+${item.skills?.join(', ') || 'None'}
 
 Anecdotes:
 ${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "skills": ["Array of suggested NEW skills not already in the current list, maximum 10"]
+  "suggestions": ["Array of suggested NEW skills not already in the current list, maximum 10"]
 }`
 }
 
 /**
  * Generates suggestions for additional accomplishments based on an anecdote
  */
-export function generateAccomplishmentsSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
+export function generateAccomplishmentsSuggestionsPrompt(item: Experience | Project, anecdote: string, customPrompt?: string): string {
   const allAnecdotes = [
     anecdote,
-    ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
+    ...(item.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
   ]
 
-  return `You are a professional resume writer helping extract VERIFIABLE accomplishments from job experience anecdotes. 
+  const isExperience = 'company' in item
+
+  return `You are a professional resume writer helping extract VERIFIABLE accomplishments from ${isExperience ? 'job experience' : 'project'} anecdotes. 
 
 ${customPrompt ? `IMPORTANT: ${customPrompt}` : ''}
 
@@ -250,13 +256,13 @@ STRICT RULES:
 5. Each accomplishment must be directly traceable to specific text in the anecdotes
 
 Current Accomplishments (DO NOT SUGGEST SIMILAR ONES):
-${experience.accomplishments.join('\n')}
+${item.accomplishments?.join('\n') || 'None'}
 
 Anecdotes:
 ${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
 
 Please respond with a JSON object containing:
 {
-  "accomplishments": ["Array of NEW verifiable accomplishments not already covered, maximum 3"]
+  "suggestions": ["Array of NEW verifiable accomplishments not already covered, maximum 3"]
 }`
 } 

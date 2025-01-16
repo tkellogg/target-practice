@@ -49,6 +49,11 @@ export interface Project {
   url: string
   description: string
   technologies: string[]
+  startDate?: string
+  endDate?: string
+  skills: string[]
+  accomplishments: string[]
+  anecdotes?: Anecdote[]
 }
 
 export interface Patent {

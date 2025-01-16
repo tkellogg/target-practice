@@ -4,63 +4,48 @@
  */
 
 import { create } from 'zustand';
-import type { Experience } from '../types/Resume';
+import type { Experience, Project } from '../types/Resume';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 interface ExperienceConversationState {
   isOpen: boolean;
-  currentExperience: Experience | null;
-  messages: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-  }>;
+  experience?: Experience;
+  project?: Project;
+  messages: Message[];
   suggestions: string[];
   isLoading: boolean;
-  error: string | null;
   setOpen: (isOpen: boolean) => void;
-  setExperience: (experience: Experience | null) => void;
+  setExperience: (experience: Experience) => void;
+  setProject: (project: Project) => void;
   addMessage: (role: 'user' | 'assistant', content: string) => void;
-  setMessages: (messages: Array<{ role: 'user' | 'assistant', content: string }>) => void;
   setSuggestions: (suggestions: string[]) => void;
   setLoading: (isLoading: boolean) => void;
-  setError: (error: string | null) => void;
   reset: () => void;
 }
 
 export const useExperienceConversationStore = create<ExperienceConversationState>((set) => ({
   isOpen: false,
-  currentExperience: null,
   messages: [],
   suggestions: [],
   isLoading: false,
-  error: null,
-
   setOpen: (isOpen) => set({ isOpen }),
-  
-  setExperience: (experience) => set({ 
-    currentExperience: experience,
-    messages: [],
-    suggestions: [],
-    error: null
-  }),
-
+  setExperience: (experience) => set({ experience, project: undefined }),
+  setProject: (project) => set({ project, experience: undefined }),
   addMessage: (role, content) => set((state) => ({
     messages: [...state.messages, { role, content }]
   })),
-
-  setMessages: (messages) => set({ messages }),
-
   setSuggestions: (suggestions) => set({ suggestions }),
-
   setLoading: (isLoading) => set({ isLoading }),
-
-  setError: (error) => set({ error }),
-
   reset: () => set({
     isOpen: false,
-    currentExperience: null,
+    experience: undefined,
+    project: undefined,
     messages: [],
     suggestions: [],
-    isLoading: false,
-    error: null
+    isLoading: false
   })
 })); 

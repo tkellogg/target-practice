@@ -8,7 +8,7 @@ import { Box, Typography, IconButton } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import { EditableText } from './EditableText'
 import { EditableList } from './EditableList'
-import { Experience } from '../types/Resume'
+import { Experience, Project } from '../types/Resume'
 import { ResumeSection } from './ResumeSection'
 import { useExperienceConversationStore } from '../stores/useExperienceConversationStore'
 import { AnecdoteAugmentation } from './AnecdoteAugmentation'
@@ -22,7 +22,7 @@ interface Props {
   onDescriptionChange?: (value: string) => void
   onSkillsChange?: (value: string[]) => void
   onAccomplishmentsChange?: (value: string[]) => void
-  experience?: Experience
+  experience?: Experience | Project
 }
 
 export function EditableSection({
@@ -37,6 +37,7 @@ export function EditableSection({
 }: Props) {
   const hasAnecdotes = experience?.anecdotes && experience.anecdotes.length > 0
   const latestAnecdote = hasAnecdotes ? experience!.anecdotes![0].content : ''
+  const isProject = 'url' in (experience || {})
 
   const handleAcceptSuggestions = (type: 'description' | 'skills' | 'accomplishments', suggestions: string[]) => {
     if (type === 'description' && onDescriptionChange) {
@@ -55,9 +56,9 @@ export function EditableSection({
           <Typography variant="h6" sx={{ flex: 1 }}>
             {title}
           </Typography>
-          {hasAnecdotes && (
+          {hasAnecdotes && !isProject && (
             <AnecdoteAugmentation
-              experience={experience!}
+              experience={experience as Experience}
               type="description"
               anecdote={latestAnecdote}
               onAccept={(suggestions) => handleAcceptSuggestions('description', suggestions)}
@@ -72,7 +73,7 @@ export function EditableSection({
             <Typography variant="subtitle2">Description</Typography>
             {hasAnecdotes && (
               <AnecdoteAugmentation
-                experience={experience!}
+                experience={experience as Experience}
                 type="description"
                 anecdote={latestAnecdote}
                 onAccept={(suggestions) => handleAcceptSuggestions('description', suggestions)}
@@ -93,7 +94,7 @@ export function EditableSection({
             <Typography variant="subtitle2">Skills</Typography>
             {hasAnecdotes && (
               <AnecdoteAugmentation
-                experience={experience!}
+                experience={experience as Experience}
                 type="skills"
                 anecdote={latestAnecdote}
                 onAccept={(suggestions) => handleAcceptSuggestions('skills', suggestions)}
@@ -115,7 +116,7 @@ export function EditableSection({
             <Typography variant="subtitle2">Accomplishments</Typography>
             {hasAnecdotes && (
               <AnecdoteAugmentation
-                experience={experience!}
+                experience={experience as Experience}
                 type="accomplishments"
                 anecdote={latestAnecdote}
                 onAccept={(suggestions) => handleAcceptSuggestions('accomplishments', suggestions)}
@@ -137,7 +138,11 @@ export function EditableSection({
             <Typography variant="subtitle2">Anecdotes</Typography>
             <IconButton 
               onClick={() => {
-                useExperienceConversationStore.getState().setExperience(experience);
+                if (isProject) {
+                  useExperienceConversationStore.getState().setProject(experience as Project);
+                } else {
+                  useExperienceConversationStore.getState().setExperience(experience as Experience);
+                }
                 useExperienceConversationStore.getState().setOpen(true);
               }} 
               size="small" 
