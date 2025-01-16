@@ -327,7 +327,6 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
               onKeyPress={handleKeyPress}
               placeholder="Just talk. No need to answer questions. Take it where you want..."
               sx={{ flex: 1 }}
-              disabled={isLoading}
             />
           </Box>
         </Box>
