@@ -20,6 +20,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
+import { EditableText } from './EditableText'
 
 interface Props {
   items: string[]
@@ -63,7 +64,14 @@ export function EditableList({ items, title, onChange, collapsible = false }: Pr
                 </IconButton>
               }
             >
-              {item}
+              <EditableText
+                value={item}
+                onChange={(value) => {
+                  const newItems = [...items]
+                  newItems[index] = value
+                  onChange(newItems)
+                }}
+              />
             </ListItem>
           ))}
         </List>
@@ -111,7 +119,14 @@ export function EditableList({ items, title, onChange, collapsible = false }: Pr
                   </IconButton>
                 }
               >
-                {item}
+                <EditableText
+                  value={item}
+                  onChange={(value) => {
+                    const newItems = [...items]
+                    newItems[index] = value
+                    onChange(newItems)
+                  }}
+                />
               </ListItem>
             ))}
           </List>

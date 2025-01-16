@@ -276,7 +276,8 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
                     px: 1,
                     py: 0.5,
                     borderRadius: 1,
-                    bgcolor: 'grey.100',
+                    bgcolor: theme => theme.palette.mode === 'light' ? 'grey.200' : 'grey.800',
+                    color: theme => theme.palette.mode === 'light' ? 'grey.900' : 'grey.100',
                     fontFamily: 'monospace'
                   }
                 }}>
