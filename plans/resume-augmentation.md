@@ -32,6 +32,16 @@ When the user clicks the magic wand icon for any of these sections, they will se
    - **Accomplishments**  
      - Up to 3 proposed additions. Same accept/reject model as skills.  
 
+3. **Custom Prompt Control**
+   - A text input field allows users to provide custom instructions to guide the AI's suggestions
+   - Instructions can be added before or after initial suggestions are generated
+   - Pressing Enter in the text field or clicking "Regenerate Suggestions" will create new suggestions using the custom instructions
+   - Custom instructions are treated as additional rules in the prompt, helping to:
+     - Focus on specific aspects of the experience
+     - Adjust the tone or style of suggestions
+     - Add constraints or requirements to the generated content
+   - The text field persists between regenerations, allowing iterative refinement
+
 3. **Storage & Persistence**  
    - Suggestions remain in-memory (React state or similar) until the user explicitly accepts them.  
    - Once accepted, modifications are written to `full-resume.xml`.  
@@ -60,12 +70,17 @@ When the user clicks the magic wand icon for any of these sections, they will se
 1. **Click Wand → See Suggestions**  
    - The user views inline diffs for job description changes (red vs. green).  
    - The user sees a list of potential additions for skills/accomplishments.  
+   - The user can optionally add custom instructions to guide the next generation.
 
-2. **Completion**  
+2. **Refinement Options**
+   - Enter custom instructions to guide the AI
+   - Press Enter or click "Regenerate Suggestions" to get new suggestions
+   - Iterate until the suggestions match desired style/content
+
+3. **Completion**  
    - For job description, the user either accepts the entire proposed update or rejects it.  
    - For skills/accomplishments, each suggested item can be accepted or rejected.  
    - After finalizing accept/reject actions, the suggestions are either merged into `full-resume.xml` (for accepted items) or discarded.
-
    - The standard “Save” button ends any in-progress edits and discards any unaccepted changes.
 
 ---
@@ -98,4 +113,4 @@ When the user clicks the magic wand icon for any of these sections, they will se
 
 ## Summary
 
-This feature complements the summarized anecdotes from “resume-editor.md” by offering inline augmentation tools for job descriptions, skills, and accomplishments. The user has a clear, granular accept/reject workflow for each suggestion. Once approved, changes are committed to `full-resume.xml`, ensuring alignment with the existing GitHub-driven XML storage approach.
+This feature complements the summarized anecdotes from “resume-editor.md” by offering inline augmentation tools for job descriptions, skills, and accomplishments. The user has a clear, granular accept/reject workflow for each suggestion, with the ability to guide and refine suggestions through custom instructions. Once approved, changes are committed to `full-resume.xml`, ensuring alignment with the existing GitHub-driven XML storage approach.

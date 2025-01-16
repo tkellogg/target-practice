@@ -167,7 +167,7 @@ Please respond with a JSON object containing:
 /**
  * Generates suggestions for augmenting a job description based on an anecdote
  */
-export function generateDescriptionSuggestionsPrompt(experience: Experience, anecdote: string): string {
+export function generateDescriptionSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
   const allAnecdotes = [
     anecdote,
     ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
@@ -182,6 +182,7 @@ RULES:
 4. Use active first person voice and past tense
 5. Maximum 1 short sentence
 6. Focus on the "what", not the "how"
+${customPrompt ? `7. Additional instructions: ${customPrompt}` : ''}
 
 Example:
 "Build a real-time analytics platform for processing customer data. Lead architecture and development of the backend systems."
@@ -201,13 +202,15 @@ Please respond with a JSON object containing:
 /**
  * Generates suggestions for additional skills based on an anecdote
  */
-export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote: string): string {
+export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
   const allAnecdotes = [
     anecdote,
     ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
   ]
 
   return `You are a professional resume writer. Based on these anecdotes about a job experience, suggest additional skills that should be listed. Limit to 10 new skills maximum.
+
+${customPrompt ? `Follow these instructions upon peanalty of death: ${customPrompt}` : ''}
 
 RULES:
 1. DO NOT suggest any skills that are already in the current list
@@ -229,13 +232,15 @@ Please respond with a JSON object containing:
 /**
  * Generates suggestions for additional accomplishments based on an anecdote
  */
-export function generateAccomplishmentsSuggestionsPrompt(experience: Experience, anecdote: string): string {
+export function generateAccomplishmentsSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
   const allAnecdotes = [
     anecdote,
     ...(experience.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
   ]
 
   return `You are a professional resume writer helping extract VERIFIABLE accomplishments from job experience anecdotes. 
+
+${customPrompt ? `Follow these instructions upon peanalty of death: ${customPrompt}` : ''}
 
 STRICT RULES:
 1. ONLY suggest accomplishments that are EXPLICITLY stated in the anecdotes

@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react'
-import { IconButton, Popover, Box, Typography, Button, CircularProgress, List, ListItem, Checkbox } from '@mui/material'
+import { IconButton, Popover, Box, Typography, Button, CircularProgress, List, ListItem, Checkbox, TextField } from '@mui/material'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import { Experience } from '../types/Resume'
 import { generateDescriptionSuggestionsPrompt, generateSkillsSuggestionsPrompt, generateAccomplishmentsSuggestionsPrompt } from '../utils/prompts'
@@ -24,6 +24,7 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([])
+  const [customPrompt, setCustomPrompt] = useState('')
 
   const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
     setAnchorEl(event.currentTarget)
@@ -32,13 +33,13 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
     let prompt: string
     switch (type) {
       case 'description':
-        prompt = generateDescriptionSuggestionsPrompt(experience, anecdote)
+        prompt = generateDescriptionSuggestionsPrompt(experience, anecdote, customPrompt)
         break
       case 'skills':
-        prompt = generateSkillsSuggestionsPrompt(experience, anecdote)
+        prompt = generateSkillsSuggestionsPrompt(experience, anecdote, customPrompt)
         break
       case 'accomplishments':
-        prompt = generateAccomplishmentsSuggestionsPrompt(experience, anecdote)
+        prompt = generateAccomplishmentsSuggestionsPrompt(experience, anecdote, customPrompt)
         break
     }
 
@@ -200,6 +201,20 @@ export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: P
               >
                 Regenerate Suggestions
               </Button>
+              <TextField
+                fullWidth
+                size="small"
+                placeholder="Add custom instructions (optional)"
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleRegenerate()
+                  }
+                }}
+                sx={{ mt: 1 }}
+              />
             </>
           ) : null}
         </Box>
