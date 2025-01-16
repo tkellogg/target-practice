@@ -30,6 +30,7 @@ import Markdown from 'markdown-to-jsx'
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog'
 import { EditableSection } from '../components/EditableSection'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 
 function isPosition(obj: any): obj is Position {
   return obj && 
@@ -315,11 +316,40 @@ export const Editor = () => {
           </Box>
 
           <Box mb={4}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }} data-section="experience">
-              <Typography variant="h5">Experience</Typography>
-              <IconButton onClick={addJob} size="small" sx={{ ml: 1 }}>
-                <AddIcon />
-              </IconButton>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              mb: 2,
+              position: 'relative'
+            }} data-section="experience">
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography variant="h5">Experience</Typography>
+                <IconButton onClick={addJob} size="small" sx={{ ml: 1 }}>
+                  <AddIcon />
+                </IconButton>
+              </Box>
+              <Box sx={{ 
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)'
+              }}>
+                <IconButton 
+                  onClick={() => {
+                    const projectsSection = document.querySelector('[data-section="projects"]')
+                    projectsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                  size="small" 
+                  sx={{
+                    bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
+                    border: `1px solid ${theme.palette.divider}`,
+                    '&:hover': {
+                      bgcolor: theme.palette.mode === 'light' ? 'grey.200' : 'grey.700',
+                    }
+                  }}
+                >
+                  <KeyboardArrowDownIcon />
+                </IconButton>
+              </Box>
             </Box>
 
             {resume.experience.map((job, index) => (
@@ -467,7 +497,7 @@ export const Editor = () => {
           </Box>
 
           {/* Projects section */}
-          <Box mb={4}>
+          <Box mb={4} data-section="projects">
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <Typography variant="h5">Open Source Projects</Typography>
               <IconButton onClick={addProject} size="small" sx={{ ml: 1 }}>
