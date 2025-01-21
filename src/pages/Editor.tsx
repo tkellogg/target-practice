@@ -1,28 +1,20 @@
-/*
- * Copyright 2025 Tim Kellogg
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/**
+ * Copyright (c) 2024. Licensed under the MIT License.
+ * See LICENSE file for license information.
  */
 
 import React, { useState } from 'react'
-import { Box, Typography, CircularProgress, IconButton, useTheme, Dialog, Container } from '@mui/material'
+import { Box, Typography, CircularProgress, IconButton, useTheme, Dialog, Container, Button, Paper, Step, StepLabel, Stepper, TextField, List, ListItem, ListItemText, Chip } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import DeleteIcon from '@mui/icons-material/Delete'
+import NavigateNextIcon from '@mui/icons-material/NavigateNext'
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore'
 import { useResumeStore } from '../stores/useResumeStore'
 import { EditableText } from '../components/EditableText'
 import { MenuBar } from '../components/MenuBar'
 import { Resume, Experience, Position } from '../types/Resume'
+import { JobPosting, JobAnalysis } from '../types/JobPosting'
 import ChatIcon from '@mui/icons-material/Chat'
 import { ExperienceConversation } from '../components/ExperienceConversation'
 import { useExperienceConversationStore } from '../stores/useExperienceConversationStore'
@@ -32,6 +24,12 @@ import { EditableSection } from '../components/EditableSection'
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp'
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import { ProjectConversation } from '../components/ProjectConversation'
+import { analyzeJobPostingPrompt } from '../utils/prompts'
+import { callAnthropicAPI } from '../utils/anthropic'
+import { JobPostingReview } from '../components/JobPostingReview'
+import { JobAnalysis as JobAnalysisComponent } from '../components/JobAnalysis'
+import { JobAnalysis as JobAnalysisType } from '../types/JobPosting'
+import { ResumePreview } from '../components/ResumePreview'
 
 function isPosition(obj: any): obj is Position {
   return obj && 
@@ -51,10 +49,16 @@ function isExperience(obj: any): obj is Experience {
     Array.isArray(obj.accomplishments)
 }
 
+const steps = ['Review Posting', 'Analyze', 'Generate']
+
 export const Editor = () => {
   const { resume, isLoading, error, updateResume } = useResumeStore()
-  const { isOpen, experience, project } = useExperienceConversationStore();
+  const { isOpen, experience, project } = useExperienceConversationStore()
   const theme = useTheme()
+  const [activeStep, setActiveStep] = useState(0)
+  const [jobPosting, setJobPosting] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysis, setAnalysis] = useState<JobAnalysis | null>(null)
   const [editingItem, setEditingItem] = useState<{
     type: 'skill' | 'accomplishment'
     jobIndex: number
@@ -65,6 +69,48 @@ export const Editor = () => {
     index: number
     title: string
   } | null>(null)
+
+  const handleAnalyzePosting = async () => {
+    if (!jobPosting.trim()) return
+    
+    setAnalyzing(true)
+    try {
+      const posting: JobPosting = {
+        id: crypto.randomUUID(),
+        company: '',  // Will be extracted by AI
+        title: '',   // Will be extracted by AI
+        url: '',     // Not needed for analysis
+        rawText: jobPosting
+      }
+      console.log('Analyzing job posting:')
+      const prompt = analyzeJobPostingPrompt(posting)
+      const response = await callAnthropicAPI(prompt)
+      // Extract JSON from the response
+      const json = JSON.parse(response.substring(response.indexOf('{'), response.lastIndexOf('}') + 1))
+      setAnalysis(json)
+      console.log('Analysis:', json)
+      setActiveStep(1);
+    } catch (error) {
+      console.error('Failed to analyze job posting:', error)
+      // TODO: Show error message to user
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const handleGeneratePreview = () => {
+    if (!analysis) return
+    setActiveStep((prevStep) => Math.min(prevStep + 1, steps.length - 1))
+  }
+
+  const handleRegenerateResume = () => {
+    // TODO: Implement resume regeneration
+    console.log('Regenerating resume...')
+  }
+
+  const handleBack = () => {
+    setActiveStep((prevStep) => Math.max(prevStep - 1, 0))
+  }
 
   const handleUpdate = (updater: (resume: Resume) => Resume) => {
     if (resume) {
@@ -259,405 +305,170 @@ export const Editor = () => {
 
   if (isLoading) {
     return (
-      <Box display="flex" justifyContent="center" p={4}>
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
         <CircularProgress />
       </Box>
     )
   }
 
-  if (!resume) {
+  if (error) {
     return (
-      <Box p={4}>
-        <Typography color="error">
-          {error || 'No resume loaded'}
-        </Typography>
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <Typography color="error">{error}</Typography>
       </Box>
     )
   }
 
-  return (
-    <>
-      <MenuBar />
-      <Container maxWidth="lg">
-        <Box p={4}>
-          <Box mb={4}>
-            <Typography variant="h5" gutterBottom>Personal Information</Typography>
-            <EditableText
-              value={resume.personalInfo.name}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                personalInfo: { ...r.personalInfo, name: value }
-              }))}
-              variant="h6"
-            />
-            <EditableText
-              value={resume.personalInfo.address}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                personalInfo: { ...r.personalInfo, address: value }
-              }))}
-            />
-            <EditableText
-              value={resume.personalInfo.phone}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                personalInfo: { ...r.personalInfo, phone: value }
-              }))}
-            />
-            <EditableText
-              value={resume.personalInfo.email}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                personalInfo: { ...r.personalInfo, email: value }
-              }))}
-            />
-            <EditableText
-              value={resume.personalInfo.description}
-              onChange={(value) => handleUpdate(r => ({
-                ...r,
-                personalInfo: { ...r.personalInfo, description: value }
-              }))}
-              multiline
-            />
-          </Box>
-
-          <Box mb={4}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mb: 2,
-              position: 'relative'
-            }} data-section="experience">
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Typography variant="h5">Experience</Typography>
-                <IconButton onClick={addJob} size="small" sx={{ ml: 1 }}>
-                  <AddIcon />
-                </IconButton>
-              </Box>
-              <Box sx={{ 
-                position: 'absolute',
-                left: '50%',
-                transform: 'translateX(-50%)'
-              }}>
-                <IconButton 
-                  onClick={() => {
-                    const projectsSection = document.querySelector('[data-section="projects"]')
-                    projectsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }}
-                  size="small" 
-                  sx={{
-                    bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
-                    border: `1px solid ${theme.palette.divider}`,
-                    '&:hover': {
-                      bgcolor: theme.palette.mode === 'light' ? 'grey.200' : 'grey.700',
-                    }
-                  }}
-                >
-                  <KeyboardArrowDownIcon />
-                </IconButton>
-              </Box>
-            </Box>
-
-            {resume.experience.map((job, index) => (
-              <Box 
-                key={index} 
-                mb={4} 
-                data-experience-item
-                sx={{ 
-                  p: 2,
-                  pt: 5,
-                  borderRadius: '2px',
-                  bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
-                  border: `1px solid ${theme.palette.divider}`,
-                  position: 'relative'
-                }}
-              >
-                <IconButton 
-                  onClick={() => handleDeleteExperience(index)}
-                  size="small"
-                  sx={{
-                    position: 'absolute',
-                    top: -12,
-                    right: 8,
-                    bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
-                    border: `1px solid ${theme.palette.divider}`,
-                    '&:hover': {
-                      bgcolor: theme.palette.mode === 'light' ? 'grey.200' : 'grey.700',
-                    }
-                  }}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
-
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <Box sx={{ flex: 1 }}>
-                    <EditableText
-                      value={job.company}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        experience: r.experience.map((j, i) => 
-                          i === index ? { ...j, company: value } : j
-                        )
-                      }))}
-                      variant="h6"
-                    />
-                    <EditableText
-                      value={job.dates}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        experience: r.experience.map((j, i) => 
-                          i === index ? { ...j, dates: value } : j
-                        )
-                      }))}
-                      variant="subtitle1"
-                    />
-                    <EditableText
-                      value={job.city || 'USA'}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        experience: r.experience.map((j, i) => 
-                          i === index ? { ...j, city: value } : j
-                        )
-                      }))}
-                      variant="subtitle2"
-                      sx={{ color: 'text.secondary' }}
-                    />
-                  </Box>
-                </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <EditableText
-                    value={job.positions.map(pos => pos.title).join(' → ')}
-                    onChange={(value) => handleUpdate(r => ({
-                      ...r,
-                      experience: r.experience.map((j, i) => {
-                        if (i === index) {
-                          const titles = value.split(' → ')
-                          const updatedPositions = titles.map((title, idx) => {
-                            const oldPos = j.positions[idx]
-                            return oldPos
-                              ? { ...oldPos, title }
-                              : { title, startDate: '', endDate: '' }
-                          })
-                          return { ...j, positions: updatedPositions }
-                        }
-                        return j
-                      })
-                    }))}
-                    variant="subtitle2"
-                    sx={{ mt: 1, flexGrow: 1 }}
-                  />
-                  <IconButton onClick={() => addPosition(index)} size="small">
-                    <AddIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-
-                <EditableSection
-                  title=""
-                  description={job.description}
-                  skills={job.skills}
-                  accomplishments={job.accomplishments}
-                  onDescriptionChange={(value) => handleUpdate(r => ({
-                    ...r,
-                    experience: r.experience.map((j, i) => 
-                      i === index ? { ...j, description: value } : j
-                    )
-                  }))}
-                  onSkillsChange={(value) => handleUpdate(r => ({
-                    ...r,
-                    experience: r.experience.map((j, i) => 
-                      i === index ? { ...j, skills: value } : j
-                    )
-                  }))}
-                  onAccomplishmentsChange={(value) => handleUpdate(r => ({
-                    ...r,
-                    experience: r.experience.map((j, i) => 
-                      i === index ? { ...j, accomplishments: value } : j
-                    )
-                  }))}
-                  experience={job}
-                />
-              </Box>
-            ))}
-            
-            {resume.experience.length > 0 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <IconButton
-                  onClick={() => {
-                    const experienceSection = document.querySelector('[data-section="experience"]')
-                    experienceSection?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }}
-                  size="small"
-                  sx={{
-                    bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
-                    border: `1px solid ${theme.palette.divider}`,
-                    '&:hover': {
-                      bgcolor: theme.palette.mode === 'light' ? 'grey.200' : 'grey.700',
-                    }
-                  }}
-                >
-                  <KeyboardArrowUpIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            )}
-          </Box>
-
-          {/* Projects section */}
-          <Box mb={4} data-section="projects">
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h5">Open Source Projects</Typography>
-              <IconButton onClick={addProject} size="small" sx={{ ml: 1 }}>
-                <AddIcon />
-              </IconButton>
-            </Box>
-
-            {resume.projects.map((project, index) => (
-              <Box 
-                key={index} 
-                mb={2}
-                sx={{ 
-                  p: 2,
-                  bgcolor: theme.palette.mode === 'light' ? 'grey.50' : 'grey.900',
-                  border: `1px solid ${theme.palette.divider}`,
-                  position: 'relative'
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-                  <Box sx={{ flex: 1 }}>
-                    <EditableText
-                      value={project.name}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        projects: r.projects.map((p, i) => 
-                          i === index ? { ...p, name: value } : p
-                        )
-                      }))}
-                      variant="h6"
-                    />
-                    <EditableText
-                      value={project.url}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        projects: r.projects.map((p, i) => 
-                          i === index ? { ...p, url: value } : p
-                        )
-                      }))}
-                    />
-                    <EditableSection
-                      title=""
-                      description={project.description}
-                      skills={project.skills}
-                      accomplishments={project.accomplishments}
-                      onDescriptionChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        projects: r.projects.map((p, i) => 
-                          i === index ? { ...p, description: value } : p
-                        )
-                      }))}
-                      onSkillsChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        projects: r.projects.map((p, i) => 
-                          i === index ? { ...p, skills: value } : p
-                        )
-                      }))}
-                      onAccomplishmentsChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        projects: r.projects.map((p, i) => 
-                          i === index ? { ...p, accomplishments: value } : p
-                        )
-                      }))}
-                      experience={project}
-                    />
-                  </Box>
-                  <IconButton onClick={() => handleDeleteProject(index)} size="small">
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              </Box>
-            ))}
-          </Box>
-
-          {/* Patents section */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h5">Patents</Typography>
-              <IconButton onClick={addPatent} size="small" sx={{ ml: 1 }}>
-                <AddIcon />
-              </IconButton>
-            </Box>
-
-            {resume.patents.map((patent, index) => (
-              <Box key={index} mb={2}>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
-                  <Box sx={{ flex: 1 }}>
-                    <EditableText
-                      value={patent.number}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        patents: r.patents.map((p, i) => 
-                          i === index ? { ...p, number: value } : p
-                        )
-                      }))}
-                    />
-                    <EditableText
-                      value={patent.title}
-                      onChange={(value) => handleUpdate(r => ({
-                        ...r,
-                        patents: r.patents.map((p, i) => 
-                          i === index ? { ...p, title: value } : p
-                        )
-                      }))}
-                    />
-                  </Box>
-                  <IconButton onClick={() => handleDeletePatent(index)} size="small">
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              </Box>
-            ))}
-          </Box>
-
-          {isOpen && (experience || project) && (
-            <Dialog
-              open={isOpen}
-              fullWidth
-              maxWidth="lg"
-              onClose={() => {
-                useExperienceConversationStore.getState().reset();
-              }}
-              sx={{
-                '& .MuiDialog-paper': {
-                  height: '80vh'
-                }
-              }}
-            >
-              {experience ? (
-                <ExperienceConversation
-                  experience={experience}
-                  onClose={() => {
-                    useExperienceConversationStore.getState().reset();
-                  }}
-                />
-              ) : (
-                <ProjectConversation
-                  project={project!}
-                  onClose={() => {
-                    useExperienceConversationStore.getState().reset();
-                  }}
-                />
-              )}
-            </Dialog>
-          )}
-
-          <DeleteConfirmDialog
-            open={!!deleteDialog}
-            title={`Delete ${deleteDialog?.title}`}
-            message="Are you sure you want to delete this item? This action cannot be undone."
-            onConfirm={handleConfirmDelete}
-            onCancel={() => setDeleteDialog(null)}
+  const getStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <JobPostingReview 
+            jobPosting={jobPosting}
+            onJobPostingChange={setJobPosting}
           />
+        )
+      case 1:
+        return (
+          <JobAnalysisComponent
+            analyzing={analyzing}
+            analysis={analysis}
+          />
+        )
+      case 2:
+        return (
+          <ResumePreview
+            resume={resume}
+          />
+        )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      <MenuBar />
+      
+      {/* Main content */}
+      <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+        <Container maxWidth="lg">
+          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+
+          {getStepContent(activeStep)}
+        </Container>
+      </Box>
+
+      {/* Bottom navigation bar */}
+      <Paper 
+        elevation={3} 
+        sx={{ 
+          py: 2, 
+          px: 3, 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderTop: 1,
+          borderColor: 'divider'
+        }}
+      >
+        {/* Left side: Action buttons */}
+        <Box>
+          {activeStep === 0 && (
+            <Button 
+              variant="contained" 
+              onClick={handleAnalyzePosting}
+              disabled={!jobPosting.trim() || analyzing}
+            >
+              {analyzing ? 'Analyzing...' : 'Analyze Posting'}
+            </Button>
+          )}
+          {activeStep === 1 && (
+            <Button 
+              variant="contained" 
+              onClick={handleGeneratePreview}
+              disabled={!analysis}
+            >
+              Generate Preview
+            </Button>
+          )}
+          {activeStep === 2 && (
+            <Button 
+              variant="contained" 
+              color="primary"
+              onClick={handleRegenerateResume}
+            >
+              Regenerate
+            </Button>
+          )}
         </Box>
-      </Container>
-    </>
+
+        {/* Right side: Navigation buttons */}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            onClick={handleBack}
+            disabled={activeStep === 0}
+            startIcon={<NavigateBeforeIcon />}
+          >
+            Previous
+          </Button>
+          <Button
+            onClick={() => setActiveStep((prev) => Math.min(prev + 1, steps.length - 1))}
+            disabled={
+              activeStep === steps.length - 1 || 
+              (activeStep === 0 && !analysis) ||
+              (activeStep === 1 && !analysis)
+            }
+            endIcon={<NavigateNextIcon />}
+            variant="contained"
+          >
+            Next
+          </Button>
+        </Box>
+      </Paper>
+
+      {/* Dialogs */}
+      <Dialog
+        open={isOpen}
+        onClose={() => useExperienceConversationStore.getState().setOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        {experience && (
+          <ExperienceConversation
+            experience={experience}
+            onClose={() => useExperienceConversationStore.getState().setOpen(false)}
+          />
+        )}
+        {project && (
+          <ProjectConversation
+            project={project}
+            onClose={() => useExperienceConversationStore.getState().setOpen(false)}
+          />
+        )}
+      </Dialog>
+
+      <DeleteConfirmDialog
+        open={!!deleteDialog}
+        title={`Delete ${deleteDialog?.title}?`}
+        message="Are you sure you want to delete this item? This action cannot be undone."
+        onConfirm={() => {
+          if (deleteDialog) {
+            handleUpdate(r => ({
+              ...r,
+              experience: r.experience.filter((_, i) => i !== deleteDialog.index)
+            }))
+            setDeleteDialog(null)
+          }
+        }}
+        onCancel={() => setDeleteDialog(null)}
+      />
+    </Box>
   )
 } 

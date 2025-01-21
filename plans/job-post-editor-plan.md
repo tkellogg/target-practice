@@ -91,6 +91,17 @@ This document outlines how the job post editor will handle AI-driven suggestions
 
 ---
 
+## Layout
+- A three step flow: Review Posting -> Analyze -> Generate
+- "Export" and download PDF are lone buttons on the "Generate" page (the preview)
+- There's a bottom bar with Next/Previous buttons on the right, and action buttons on the left:
+   - "Analyze Posting" (on Review Posting step)
+   - "Generate Preview" (on Analyze Needs step)
+   - "Regenerate" (on Generate step)
+- The current active step is visually distinct
+
+---
+
 ## Future Considerations
 - **Granular Scoring**  
   - If more sophisticated prioritization is needed in the future, we can explore assigning confidence or urgency to each suggestion.

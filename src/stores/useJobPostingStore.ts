@@ -356,6 +356,7 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         analysis
       };
 
+      console.log('Analyzed posting (JobPostingStore):', analysis);
       await get().updatePosting(updatedPosting);
     } catch (error) {
       console.error('Error analyzing job posting:', error);

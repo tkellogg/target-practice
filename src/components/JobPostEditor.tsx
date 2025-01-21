@@ -16,7 +16,6 @@ const steps = [
   'Review Posting',
   'Analyze Needs',
   'Generate Resume',
-  'Export'
 ];
 
 interface JobPostEditorProps {
@@ -54,7 +53,7 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
     setIsAnalyzing(true);
     try {
       await analyzePosting(posting);
-      setActiveStep((prevStep) => prevStep + 1);
+      setActiveStep(1);
     } catch (error) {
       console.error('Failed to analyze posting:', error);
     } finally {
@@ -109,9 +108,11 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
       </Box>
 
       <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {steps.map((label) => (
+        {steps.map((label, i) => (
           <Step key={label}>
-            <StepLabel>{label}</StepLabel>
+            <Button onClick={() => setActiveStep(i)}>
+                <StepLabel>{label}</StepLabel>
+            </Button>
           </Step>
         ))}
       </Stepper>
@@ -121,15 +122,6 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
           <Box>
             <Typography variant="h6" gutterBottom>Job Description</Typography>
             <Typography whiteSpace="pre-wrap">{posting.rawText}</Typography>
-            <Box sx={{ mt: 3 }}>
-              <Button
-                variant="contained"
-                onClick={handleAnalyze}
-                disabled={isAnalyzing}
-              >
-                {isAnalyzing ? <CircularProgress size={24} /> : 'Analyze Posting'}
-              </Button>
-            </Box>
           </Box>
         )}
         {activeStep === 1 && (
@@ -236,14 +228,6 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
                     </Box>
                   ) : null}
                 </Box>
-                <Button
-                  variant="outlined"
-                  onClick={handleGenerateResume}
-                  disabled={isGenerating}
-                  sx={{ mr: 2 }}
-                >
-                  Regenerate
-                </Button>
               </>
             ) : (
               <Box>
@@ -261,84 +245,31 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
             )}
           </Box>
         )}
-        {activeStep === 3 && (
-          <Box>
-            <Typography variant="h6" gutterBottom>Export</Typography>
-            <Typography sx={{ mb: 3 }}>
-              Your resume will be exported as a professionally formatted PDF and saved to your GitHub repository.
-            </Typography>
-            <Box sx={{ mb: 3, minHeight: 200, border: '1px solid', borderColor: 'divider', p: 2, borderRadius: 1 }}>
-              {posting.generatedResume && resume && (
-                <Box>
-                  {/* Personal Info */}
-                  <Typography variant="h6" gutterBottom>{resume.personalInfo.name}</Typography>
-                  <Typography color="text.secondary" gutterBottom>
-                    {resume.personalInfo.address} • {resume.personalInfo.phone} • {resume.personalInfo.email}
-                  </Typography>
+      </Box>
 
-                  {/* Overview */}
-                  <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Overview</Typography>
-                  <Typography whiteSpace="pre-wrap" paragraph>{posting.generatedResume.overview}</Typography>
-                  
-                  {/* Experience */}
-                  <Typography variant="subtitle1" gutterBottom>Experience</Typography>
-                  {resume.experience
-                    .filter((_, i) => posting.generatedResume?.selectedExperienceIds.includes(`exp_${i}`))
-                    .map((exp, i) => (
-                      <Box key={i} sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" fontWeight="bold">{exp.company}</Typography>
-                        {exp.positions.map((pos, j) => (
-                          <Typography key={j} variant="body2" color="text.secondary">
-                            {pos.title} ({pos.startDate} - {pos.endDate})
-                          </Typography>
-                        ))}
-                        <Typography paragraph>{exp.description}</Typography>
-                        <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                          {exp.accomplishments.map((acc, k) => (
-                            <Typography key={k} component="li">{acc}</Typography>
-                          ))}
-                        </Box>
-                      </Box>
-                    ))}
-                  
-                  {/* Projects */}
-                  {resume.projects.length > 0 && (
-                    <>
-                      <Typography variant="subtitle1" gutterBottom>Open Source Projects</Typography>
-                      {resume.projects.map((proj, i) => (
-                        <Box key={i} sx={{ mb: 2 }}>
-                          <Typography variant="subtitle2" fontWeight="bold">{proj.name}</Typography>
-                          <Typography color="primary" variant="body2" component="a" href={proj.url} target="_blank">
-                            {proj.url}
-                          </Typography>
-                          <Typography paragraph>{proj.description}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Technologies: {proj.technologies.join(', ')}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Patents */}
-                  {resume.patents.length > 0 && (
-                    <>
-                      <Typography variant="subtitle1" gutterBottom>Patents</Typography>
-                      {resume.patents.map((patent, i) => (
-                        <Typography key={i} paragraph>
-                          {patent.title} (Patent #{patent.number})
-                        </Typography>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Closing */}
-                  <Typography variant="subtitle1" gutterBottom>Closing</Typography>
-                  <Typography whiteSpace="pre-wrap">{posting.generatedResume.closing}</Typography>
-                </Box>
-              )}
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2}}>
+            {activeStep === 0 && (
+                <Button
+                variant="outlined"
+                    onClick={handleAnalyze}
+                    disabled={isAnalyzing}
+                >
+                    {isAnalyzing ? <CircularProgress size={24} /> : 'Analyze Posting'}
+                </Button>
+            )}
+            {(activeStep === 1 || activeStep === 2) && (
+                <Button
+                  variant="outlined"
+                  onClick={handleGenerateResume}
+                  disabled={isGenerating}
+                  sx={{ mr: 2 }}
+                >
+                {activeStep === 2 ? 'Regenerate Preview' : 'Generate Preview'}
+                </Button>
+            )}
+            {activeStep >= 2 && (
+              <>
               <Button
                 variant="contained"
                 onClick={handleExport}
@@ -356,25 +287,24 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
                   View PDF
                 </Button>
               )}
-            </Box>
-          </Box>
-        )}
-      </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
-        <Button
-          onClick={handleBack}
-          disabled={activeStep === 0}
-        >
-          Back
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleNext}
-          disabled={activeStep === steps.length - 1 || (activeStep === 0 && !posting.analysis)}
-        >
-          {activeStep === steps.length - 2 ? 'Export' : 'Next'}
-        </Button>
+              </>
+            )}
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+            <Button
+            onClick={handleBack}
+            disabled={activeStep === 0}
+            >
+            Back
+            </Button>
+            <Button
+            variant="contained"
+            onClick={handleNext}
+            disabled={activeStep === steps.length - 1 || (activeStep === 0 && !posting.analysis)}
+            >
+            Next
+            </Button>
+        </Box>
       </Box>
     </Box>
   );
