@@ -26,13 +26,18 @@ export function JobPostings() {
   const [newPosting, setNewPosting] = useState<Partial<JobPosting>>({});
   const [selectedPosting, setSelectedPosting] = useState<JobPosting | null>(null);
   
-  const { postings, createPosting, isLoading, error, selectedRepo, loadPostings } = useJobPostingStore();
+  const { postings, createPosting, isLoading, error, selectedRepo, loadPostings, setSelectedPosting: setStoreSelectedPosting } = useJobPostingStore();
 
   useEffect(() => {
     if (selectedRepo) {
       loadPostings();
     }
   }, [selectedRepo]);
+
+  const handleSelectPosting = (posting: JobPosting | null) => {
+    setSelectedPosting(posting);
+    setStoreSelectedPosting(posting);
+  };
 
   const handleCreate = async () => {
     if (!newPosting.company || !newPosting.title || !newPosting.url || !newPosting.rawText) {
@@ -89,8 +94,7 @@ export function JobPostings() {
         zIndex: 1200 
       }}>
         <JobPostEditor 
-          posting={selectedPosting} 
-          onClose={() => setSelectedPosting(null)} 
+          onClose={() => handleSelectPosting(null)} 
         />
       </Box>
     );
@@ -126,7 +130,7 @@ export function JobPostings() {
                   key={posting.id}
                   variant="outlined"
                   color="primary"
-                  onClick={() => setSelectedPosting(posting)}
+                  onClick={() => handleSelectPosting(posting)}
                   sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
                 >
                   {posting.company} — {posting.title}

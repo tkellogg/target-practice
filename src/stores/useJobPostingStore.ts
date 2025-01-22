@@ -146,13 +146,14 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   },
 
   setSelectedPosting: (posting) => {
+    console.log('setSelectedPosting called with:', posting?.id);
     set({ selectedPosting: posting });
   },
 
   loadPostings: async () => {
     try {
+      const { selectedRepo, selectedPosting: currentSelectedPosting } = get();
       set({ isLoading: true, error: null });
-      const { selectedRepo } = get();
       if (!selectedRepo) return;
 
       const { owner, repo } = parseRepoString(selectedRepo);
@@ -164,12 +165,21 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
           .map(async (file: string) => {
             const content = await getFileContent(owner, repo, file);
             const id = file.replace('job-postings/', '').replace('.xml', '');
-            return parseXMLToPosting(content, id);
+            const posting = parseXMLToPosting(content, id);
+            return posting;
           })
       );
 
+      const filteredPostings = postings.filter((p): p is JobPosting => p !== null);
+      
+      // If we have a selected posting, find its updated version
+      const updatedSelectedPosting = currentSelectedPosting 
+        ? filteredPostings.find(p => p.id === currentSelectedPosting.id)
+        : null;
+
       set({ 
-        postings: postings.filter((p): p is JobPosting => p !== null),
+        postings: filteredPostings,
+        selectedPosting: updatedSelectedPosting || currentSelectedPosting,
         isLoading: false 
       });
     } catch (error) {
@@ -367,7 +377,6 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         analysis
       };
 
-      console.log('Analyzed posting (JobPostingStore):', analysis);
       await get().updatePosting(updatedPosting);
     } catch (error) {
       console.error('Error analyzing job posting:', error);

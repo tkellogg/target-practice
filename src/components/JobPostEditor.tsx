@@ -30,11 +30,10 @@ const steps = [
 ];
 
 interface JobPostEditorProps {
-  posting: JobPosting;
   onClose: () => void;
 }
 
-export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
+export function JobPostEditor({ onClose }: JobPostEditorProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -42,15 +41,15 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const { resume } = useResumeStore();
   const { selectedRepo } = useResumeStore();
-  const { generateResume, updatePosting, analyzePosting } = useJobPostingStore();
+  const { generateResume, updatePosting, analyzePosting, selectedPosting } = useJobPostingStore();
 
   useEffect(() => {
     const checkPDF = async () => {
-      if (!selectedRepo || !posting) return;
+      if (!selectedRepo || !selectedPosting) return;
       
       const { owner, repo } = parseRepoString(selectedRepo);
       const date = new Date().toISOString().split('T')[0];
-      const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const fileSlug = `${selectedPosting.company}-${selectedPosting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const path = `job-postings/${date}-${fileSlug}.pdf`;
       
       const url = await checkFileExists(owner, repo, path);
@@ -58,12 +57,15 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
     };
 
     checkPDF();
-  }, [selectedRepo, posting]);
+  }, [selectedRepo, selectedPosting]);
 
   const handleAnalyze = async () => {
+    if (!selectedPosting) return;
     setIsAnalyzing(true);
     try {
-      await analyzePosting(posting);
+      await analyzePosting(selectedPosting);
+      // Wait for next render tick to ensure store is updated
+    //   await new Promise(resolve => setTimeout(resolve, 0));
       setActiveStep(1);
     } catch (error) {
       console.error('Failed to analyze posting:', error);
@@ -73,10 +75,10 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
   };
 
   const handleGenerateResume = async () => {
-    if (!resume) return;
+    if (!resume || !selectedPosting) return;
     setIsGenerating(true);
     try {
-      await generateResume(posting, resume);
+      await generateResume(selectedPosting, resume);
     } catch (error) {
       console.error('Failed to generate resume:', error);
     } finally {
@@ -85,14 +87,14 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
   };
 
   const handleExport = async () => {
-    if (!selectedRepo || !posting.generatedResume) return;
+    if (!selectedRepo || !selectedPosting?.generatedResume) return;
     setIsExporting(true);
     try {
-      await generateAndSavePDF(posting, selectedRepo);
+      await generateAndSavePDF(selectedPosting, selectedRepo);
       // After exporting, check for the PDF again
       const { owner, repo } = parseRepoString(selectedRepo);
       const date = new Date().toISOString().split('T')[0];
-      const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const fileSlug = `${selectedPosting.company}-${selectedPosting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const path = `job-postings/${date}-${fileSlug}.pdf`;
       const url = await checkFileExists(owner, repo, path);
       setPdfUrl(url);
@@ -111,10 +113,12 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
     setActiveStep((prevStep) => prevStep - 1);
   };
 
+  if (!selectedPosting) return null;
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5">{posting.company} — {posting.title}</Typography>
+        <Typography variant="h5">{selectedPosting.company} — {selectedPosting.title}</Typography>
         <Button onClick={onClose}>Close</Button>
       </Box>
 
@@ -132,29 +136,31 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
         {activeStep === 0 && (
           <Box>
             <Typography variant="h6" gutterBottom>Job Description</Typography>
-            <Typography whiteSpace="pre-wrap">{posting.rawText}</Typography>
+            <Typography whiteSpace="pre-wrap">{selectedPosting.rawText}</Typography>
           </Box>
         )}
         {activeStep === 1 && (
           <JobRequirements 
-            analysis={posting.analysis ?? null}
+            analysis={selectedPosting.analysis ?? null}
             isEditable={true}
             onUpdateRequirements={async (type, requirements) => {
+              if (!selectedPosting?.analysis) return;
               await updatePosting({
-                ...posting,
-                analysis: posting.analysis ? {
-                  ...posting.analysis,
+                ...selectedPosting,
+                analysis: {
+                  ...selectedPosting.analysis,
                   [type === 'required' ? 'requiredSkills' : 'optionalSkills']: requirements
-                } : undefined
+                }
               });
             }}
             onUpdateSuccessCriteria={async (criteria) => {
+              if (!selectedPosting?.analysis) return;
               await updatePosting({
-                ...posting,
-                analysis: posting.analysis ? {
-                  ...posting.analysis,
+                ...selectedPosting,
+                analysis: {
+                  ...selectedPosting.analysis,
                   successCriteria: criteria
-                } : undefined
+                }
               });
             }}
           />
@@ -162,14 +168,14 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
         {activeStep === 2 && (
           <Box>
             <Typography variant="h6" gutterBottom>Generated Resume</Typography>
-            {posting.generatedResume ? (
+            {selectedPosting.generatedResume ? (
               <>
                 <Box sx={{ mb: 3, minHeight: 200 }}>
                   {isGenerating ? (
                     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                       <CircularProgress />
                     </Box>
-                  ) : posting.generatedResume && resume ? (
+                  ) : selectedPosting.generatedResume && resume ? (
                     <Box>
                       {/* Personal Info */}
                       <Typography variant="h6" gutterBottom>{resume.personalInfo.name}</Typography>
@@ -179,12 +185,12 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
 
                       {/* Overview */}
                       <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Overview</Typography>
-                      <Typography whiteSpace="pre-wrap" paragraph>{posting.generatedResume.overview}</Typography>
+                      <Typography whiteSpace="pre-wrap" paragraph>{selectedPosting.generatedResume.overview}</Typography>
                       
                       {/* Experience */}
                       <Typography variant="subtitle1" gutterBottom>Experience</Typography>
                       {resume.experience
-                        .filter((_, i) => posting.generatedResume?.selectedExperienceIds.includes(`exp_${i}`))
+                        .filter((_, i) => selectedPosting.generatedResume?.selectedExperienceIds.includes(`exp_${i}`))
                         .map((exp, i) => (
                           <Box key={i} sx={{ mb: 2 }}>
                             <Typography variant="subtitle2" fontWeight="bold">{exp.company}</Typography>
@@ -235,7 +241,7 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
 
                       {/* Closing */}
                       <Typography variant="subtitle1" gutterBottom>Closing</Typography>
-                      <Typography whiteSpace="pre-wrap">{posting.generatedResume.closing}</Typography>
+                      <Typography whiteSpace="pre-wrap">{selectedPosting.generatedResume.closing}</Typography>
                     </Box>
                   ) : null}
                 </Box>
@@ -284,7 +290,7 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
               <Button
                 variant="contained"
                 onClick={handleExport}
-                disabled={isExporting || !posting.generatedResume}
+                disabled={isExporting || !selectedPosting.generatedResume}
               >
                 {isExporting ? <CircularProgress size={24} /> : 'Export as PDF'}
               </Button>
@@ -311,7 +317,7 @@ export function JobPostEditor({ posting, onClose }: JobPostEditorProps) {
             <Button
             variant="contained"
             onClick={handleNext}
-            disabled={activeStep === steps.length - 1 || (activeStep === 0 && !posting.analysis)}
+            disabled={activeStep === steps.length - 1 || (activeStep === 0 && !selectedPosting.analysis)}
             >
             Next
             </Button>
