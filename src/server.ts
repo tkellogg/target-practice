@@ -20,6 +20,12 @@ import Anthropic from '@anthropic-ai/sdk';
 import { generateConversationStartersPrompt, summarizeConversationPrompt } from './utils/prompts';
 import type { Experience } from './types/Resume';
 import * as dotenv from 'dotenv';
+import { callAnthropicAPI } from './utils/anthropic';
+import { 
+  generateDescriptionSuggestionsPrompt,
+  generateSkillsSuggestionsPrompt,
+  generateAccomplishmentsSuggestionsPrompt
+} from './utils/prompts';
 
 // Load environment variables
 dotenv.config();
@@ -141,6 +147,40 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error analyzing with Anthropic:', error);
     res.status(500).json({ error: 'Failed to analyze with Anthropic' });
+  }
+});
+
+app.post('/api/augment', async (req, res) => {
+  try {
+    const { experience, type, anecdote, customPrompt } = req.body;
+    let prompt: string;
+
+    switch (type) {
+      case 'description':
+        prompt = generateDescriptionSuggestionsPrompt(experience, anecdote, customPrompt);
+        break;
+      case 'skills':
+        prompt = generateSkillsSuggestionsPrompt(experience, anecdote, customPrompt);
+        break;
+      case 'accomplishments':
+        prompt = generateAccomplishmentsSuggestionsPrompt(experience, anecdote, customPrompt);
+        break;
+      default:
+        throw new Error(`Invalid augmentation type: ${type}`);
+    }
+
+    const response = await callAnthropicAPI(prompt);
+    // Extract JSON from the response
+    const json = JSON.parse(response.substring(response.indexOf('{'), response.lastIndexOf('}') + 1));
+    
+    if (!json.suggestions || !Array.isArray(json.suggestions)) {
+      throw new Error('Invalid response format from LLM');
+    }
+
+    res.json(json);
+  } catch (error) {
+    console.error('Error in /api/augment:', error);
+    res.status(500).json({ error: 'Failed to generate suggestions' });
   }
 });
 

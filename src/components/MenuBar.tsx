@@ -23,6 +23,9 @@ export const MenuBar = () => {
   const { resume, updateResume } = useResumeStore()
   const location = useLocation()
 
+  // Debug logs
+  console.log('[DEBUG] MenuBar current location:', location.pathname)
+
   const handleSave = () => {
     if (resume) {
       updateResume(resume)
@@ -33,18 +36,24 @@ export const MenuBar = () => {
     <AppBar position="sticky" color="default" elevation={1}>
       <Container maxWidth="lg">
         <Toolbar disableGutters>
-          <Tabs value={location.pathname} sx={{ flex: 1 }}>
+          <Tabs 
+            value={location.pathname} 
+            sx={{ flex: 1 }}
+            onChange={(_, value) => console.log('[DEBUG] Tab changed to:', value)}
+          >
             <Tab 
               label="Resume Editor" 
               value="/" 
               component={Link} 
               to="/"
+              onClick={() => console.log('[DEBUG] Resume Editor tab clicked')}
             />
             <Tab 
               label="Job Postings" 
               value="/job-postings" 
               component={Link} 
               to="/job-postings"
+              onClick={() => console.log('[DEBUG] Job Postings tab clicked')}
             />
           </Tabs>
           <Button

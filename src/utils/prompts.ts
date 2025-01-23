@@ -222,102 +222,78 @@ Please respond with a JSON object containing:
 /**
  * Generates suggestions for augmenting a description based on an anecdote
  */
-export function generateDescriptionSuggestionsPrompt(item: Experience | Project, anecdote: string, customPrompt?: string): string {
-  const allAnecdotes = [
-    anecdote,
-    ...(item.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
-  ]
+export function generateDescriptionSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
+  return `You are helping to improve a job description based on an anecdote. The goal is to make the description more impactful and specific while maintaining accuracy.
 
-  const isExperience = 'company' in item
+Current job description:
+${experience.description}
 
-  return `Write a concise ${isExperience ? 'job' : 'project'} description that explains what the ${isExperience ? 'product/project was and your role in it' : 'project does and your contributions to it'}.
+Anecdote providing additional context:
+${anecdote}
 
-RULES:
-1. First explain what was being built (the product/project)
-2. Then explain your role in relation to that ${isExperience ? 'product' : 'project'}
-3. Omit specific technologies and metrics
-4. Use active first person voice and past tense
-5. Maximum 1 short sentence
-6. Focus on the "what", not the "how"
-${customPrompt ? `7. Additional instructions: ${customPrompt}` : ''}
+${customPrompt ? `Additional instructions: ${customPrompt}\n` : ''}
 
-Example:
-"${isExperience ? 'Build a real-time analytics platform for processing customer data. Lead architecture and development of the backend systems.' : 'Created an open-source library for handling complex data structures. Designed the core architecture and implemented key features.'}"
+Please generate a new job description that:
+1. Incorporates key details from the anecdote
+2. Maintains factual accuracy
+3. Uses strong, active language
+4. Stays concise (2-3 sentences)
 
-Current Description:
-${item.description}
-
-Anecdotes:
-${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
-
-Please respond with a JSON object containing:
+Return your response in this JSON format:
 {
-  "suggestions": ["One sentence: what the ${isExperience ? 'product' : 'project'} was + your role in it"]
-}`
+  "suggestions": ["your suggested description"]
+}`;
 }
 
 /**
  * Generates suggestions for additional skills based on an anecdote
  */
-export function generateSkillsSuggestionsPrompt(item: Experience | Project, anecdote: string, customPrompt?: string): string {
-  const allAnecdotes = [
-    anecdote,
-    ...(item.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
-  ]
+export function generateSkillsSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
+  return `You are helping to identify additional skills based on an anecdote. The goal is to surface relevant technical and soft skills that were demonstrated but not explicitly listed.
 
-  const isExperience = 'company' in item
+Current skills:
+${experience.skills.join(', ')}
 
-  return `You are a professional resume writer. Based on these anecdotes about a ${isExperience ? 'job experience' : 'project'}, suggest additional skills that should be listed. Limit to 10 new skills maximum.
+Anecdote providing additional context:
+${anecdote}
 
-${customPrompt ? `IMPORTANT: ${customPrompt}` : ''}
+${customPrompt ? `Additional instructions: ${customPrompt}\n` : ''}
 
-RULES:
-1. DO NOT suggest any skills that are already in the current list
-2. Only suggest skills that are clearly implied by the anecdotes
-3. If you can't find 10 new skills, return fewer
+Please identify up to 10 additional skills that:
+1. Are clearly evidenced in the anecdote
+2. Would be valuable to highlight
+3. Are not already listed
+4. Are specific and concrete (e.g., "React" instead of just "JavaScript frameworks")
 
-Current Skills (DO NOT INCLUDE THESE):
-${item.skills?.join(', ') || 'None'}
-
-Anecdotes:
-${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
-
-Please respond with a JSON object containing:
+Return your response in this JSON format:
 {
-  "suggestions": ["Array of suggested NEW skills not already in the current list, maximum 10"]
-}`
+  "suggestions": ["skill 1", "skill 2", ...]
+}`;
 }
 
 /**
  * Generates suggestions for additional accomplishments based on an anecdote
  */
-export function generateAccomplishmentsSuggestionsPrompt(item: Experience | Project, anecdote: string, customPrompt?: string): string {
-  const allAnecdotes = [
-    anecdote,
-    ...(item.anecdotes?.filter(a => a.content !== anecdote).map(a => a.content) || [])
-  ]
+export function generateAccomplishmentsSuggestionsPrompt(experience: Experience, anecdote: string, customPrompt?: string): string {
+  return `You are helping to extract key accomplishments from an anecdote. The goal is to identify specific, measurable achievements that would strengthen the resume.
 
-  const isExperience = 'company' in item
+Current accomplishments:
+${experience.accomplishments.join('\n')}
 
-  return `You are a professional resume writer helping extract VERIFIABLE accomplishments from ${isExperience ? 'job experience' : 'project'} anecdotes. 
+Anecdote providing additional context:
+${anecdote}
 
-${customPrompt ? `IMPORTANT: ${customPrompt}` : ''}
+${customPrompt ? `Additional instructions: ${customPrompt}\n` : ''}
 
-STRICT RULES:
-1. ONLY suggest accomplishments that are EXPLICITLY stated in the anecdotes
-2. NEVER make up numbers, metrics, or details that aren't directly mentioned
-3. DO NOT suggest any accomplishments that are similar to the current list
-4. If you can't find 3 new explicit accomplishments, return fewer
-5. Each accomplishment must be directly traceable to specific text in the anecdotes
+Please suggest up to 3 additional accomplishments that:
+1. Are clearly evidenced in the anecdote
+2. Include specific metrics where possible
+3. Use strong action verbs
+4. Focus on impact and results
+5. Are not redundant with existing accomplishments
 
-Current Accomplishments (DO NOT SUGGEST SIMILAR ONES):
-${item.accomplishments?.join('\n') || 'None'}
-
-Anecdotes:
-${allAnecdotes.map((a, i) => `${i + 1}. ${a}`).join('\n\n')}
-
-Please respond with a JSON object containing:
+Return your response in this JSON format:
 {
-  "suggestions": ["Array of NEW verifiable accomplishments not already covered, maximum 3"]
-}`
+  "suggestions": ["accomplishment 1", "accomplishment 2", "accomplishment 3"]
+}`;
 } 

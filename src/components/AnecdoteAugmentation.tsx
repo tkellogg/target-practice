@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react'
-import { IconButton, Popover, Box, Typography, Button, CircularProgress, List, ListItem, Checkbox, TextField } from '@mui/material'
+import { IconButton, Popover, Box, Typography, Button, CircularProgress, List, ListItem, Checkbox, TextField, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel } from '@mui/material'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import { Experience, Project } from '../types/Resume'
@@ -31,214 +31,153 @@ type Props = {
   onAccept: (suggestions: string[]) => void
 }
 
-export function AnecdoteAugmentation({ experience, type, anecdote, onAccept }: Props) {
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
+export const AnecdoteAugmentation: React.FC<Props> = ({ experience, type, anecdote, onAccept }) => {
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
-  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([])
+  const [selectedSuggestions, setSelectedSuggestions] = useState<boolean[]>([])
   const [customPrompt, setCustomPrompt] = useState('')
-  const [error, setError] = useState<string | null>(null)
 
-  const handleClick = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget)
+  const handleOpen = async () => {
+    setOpen(true)
+    await generateSuggestions()
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+    setSuggestions([])
+    setSelectedSuggestions([])
+    setCustomPrompt('')
+  }
+
+  const generateSuggestions = async () => {
     setLoading(true)
-    setError(null)
-
-    let prompt: string
-    switch (type) {
-      case 'description':
-        prompt = generateDescriptionSuggestionsPrompt(experience, anecdote, customPrompt)
-        break
-      case 'skills':
-        prompt = generateSkillsSuggestionsPrompt(experience, anecdote, customPrompt)
-        break
-      case 'accomplishments':
-        prompt = generateAccomplishmentsSuggestionsPrompt(experience, anecdote, customPrompt)
-        break
-    }
-
     try {
-      const response = await callAnthropicAPI(prompt)
-      // Extract JSON from the response
-      const json = JSON.parse(response.substring(response.indexOf('{'), response.lastIndexOf('}') + 1))
-      if (!json.suggestions || !Array.isArray(json.suggestions)) {
-        throw new Error('Invalid response format')
-      }
-      setSuggestions(json.suggestions)
-      setSelectedSuggestions([])
+      const response = await fetch('/api/augment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          experience,
+          type,
+          anecdote,
+          customPrompt: customPrompt.trim() || undefined
+        })
+      })
+      const data = await response.json()
+      setSuggestions(data.suggestions)
+      setSelectedSuggestions(new Array(data.suggestions.length).fill(false))
     } catch (error) {
-      console.error('Failed to get suggestions:', error)
-      setError('Failed to generate suggestions. Please try again.')
+      console.error('Failed to generate suggestions:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleClose = () => {
-    setAnchorEl(null)
-    setSuggestions([])
-    setSelectedSuggestions([])
-    setError(null)
-  }
-
   const handleAccept = () => {
-    onAccept(type === 'description' ? [suggestions[0]] : selectedSuggestions)
+    const acceptedSuggestions = suggestions.filter((_, i) => selectedSuggestions[i])
+    onAccept(acceptedSuggestions)
     handleClose()
   }
 
-  const handleRegenerate = () => {
-    setSuggestions([])
-    setSelectedSuggestions([])
-    handleClick({ currentTarget: anchorEl! } as React.MouseEvent<HTMLButtonElement>)
+  const handleRegenerateClick = () => {
+    generateSuggestions()
   }
 
-  const open = Boolean(anchorEl)
+  const handleCustomPromptKeyPress = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      generateSuggestions()
+    }
+  }
 
   return (
     <>
-      <IconButton onClick={handleClick} size="small" sx={{ ml: 1 }}>
-        <AutoFixHighIcon fontSize="small" />
+      <IconButton 
+        onClick={handleOpen}
+        disabled={!anecdote}
+        title={anecdote ? 'Generate suggestions from anecdote' : 'Add an anecdote first'}
+      >
+        <AutoFixHighIcon />
       </IconButton>
 
-      <Popover
-        open={open}
-        anchorEl={anchorEl}
+      <Dialog 
+        open={open} 
         onClose={handleClose}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
+        maxWidth="md"
+        fullWidth
       >
-        <Box sx={{ p: 2, maxWidth: 400 }}>
-          {loading ? (
-            <Box display="flex" justifyContent="center" p={2}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : error ? (
-            <Typography color="error">{error}</Typography>
-          ) : suggestions && suggestions.length > 0 ? (
-            <>
-              <Typography variant="subtitle2" gutterBottom>
-                Suggested {type === 'description' ? 'Description' : type === 'skills' ? 'Skills' : 'Accomplishments'}:
-              </Typography>
+        <DialogTitle>
+          {type === 'description' ? 'Suggested Description' : `Suggested ${type.charAt(0).toUpperCase() + type.slice(1)}`}
+        </DialogTitle>
 
-              {type === 'description' ? (
-                // For description, show current and suggested text with accept/reject
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Current:
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    mb: 2,
-                    bgcolor: theme => theme.palette.mode === 'light' ? '#ffdce0' : '#3c1f1f',
-                    color: theme => theme.palette.mode === 'light' ? '#67060c' : '#f9d1d5',
-                    p: 1,
-                    borderRadius: '2px'
-                  }}>
-                    {experience.description}
-                  </Typography>
-
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Suggested:
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    mb: 2,
-                    bgcolor: theme => theme.palette.mode === 'light' ? '#e6ffec' : '#1f3420',
-                    color: theme => theme.palette.mode === 'light' ? '#1a7f37' : '#aff5b4',
-                    p: 1,
-                    borderRadius: '2px'
-                  }}>
-                    {suggestions[0]}
-                  </Typography>
-
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                    <Button onClick={handleClose} sx={{ mr: 1 }}>
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="contained"
-                      onClick={() => onAccept([suggestions[0]])}
-                    >
-                      Accept
-                    </Button>
-                  </Box>
-
-                  <Button
-                    onClick={handleRegenerate}
-                    startIcon={<RefreshIcon />}
-                    fullWidth
-                    sx={{ mt: 2 }}
-                  >
-                    Regenerate
-                  </Button>
-                </Box>
-              ) : (
-                // For skills and accomplishments, show checkboxes
-                <>
-                  <List>
-                    {suggestions.map((suggestion, index) => (
-                      <ListItem key={index} sx={{ px: 0 }}>
-                        <Checkbox
-                          checked={selectedSuggestions.includes(suggestion)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedSuggestions([...selectedSuggestions, suggestion])
-                            } else {
-                              setSelectedSuggestions(selectedSuggestions.filter(s => s !== suggestion))
-                            }
-                          }}
-                        />
-                        <Typography variant="body2">{suggestion}</Typography>
-                      </ListItem>
-                    ))}
-                  </List>
-
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                    <Button onClick={handleClose} sx={{ mr: 1 }}>
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="contained"
-                      onClick={handleAccept}
-                      disabled={selectedSuggestions.length === 0}
-                    >
-                      Accept Selected
-                    </Button>
-                  </Box>
-
-                  <Button
-                    onClick={handleRegenerate}
-                    startIcon={<RefreshIcon />}
-                    fullWidth
-                    sx={{ mt: 2 }}
-                  >
-                    Regenerate
-                  </Button>
-                </>
-              )}
-            </>
-          ) : (
-            <Typography>No suggestions available. Try adjusting the anecdote.</Typography>
-          )}
-
+        <DialogContent>
           {/* Custom prompt input */}
-          <Box sx={{ mt: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Custom prompt (optional)"
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              multiline
-              rows={2}
-            />
-          </Box>
-        </Box>
-      </Popover>
+          <TextField
+            fullWidth
+            placeholder="Add custom instructions to guide the AI..."
+            value={customPrompt}
+            onChange={(e) => setCustomPrompt(e.target.value)}
+            onKeyPress={handleCustomPromptKeyPress}
+            sx={{ mb: 2 }}
+          />
+
+          {loading ? (
+            <Typography>Generating suggestions...</Typography>
+          ) : type === 'description' ? (
+            // For description, show diff view
+            <Box sx={{ 
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap',
+              p: 2,
+              bgcolor: 'background.paper',
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1
+            }}>
+              <Typography component="div" sx={{ color: 'error.main', textDecoration: 'line-through' }}>
+                {experience.description}
+              </Typography>
+              <Typography component="div" sx={{ color: 'success.main', mt: 1 }}>
+                {suggestions[0]}
+              </Typography>
+            </Box>
+          ) : (
+            // For skills and accomplishments, show checkboxes
+            suggestions.map((suggestion, index) => (
+              <FormControlLabel
+                key={index}
+                control={
+                  <Checkbox
+                    checked={selectedSuggestions[index]}
+                    onChange={(e) => {
+                      const newSelected = [...selectedSuggestions]
+                      newSelected[index] = e.target.checked
+                      setSelectedSuggestions(newSelected)
+                    }}
+                  />
+                }
+                label={suggestion}
+              />
+            ))
+          )}
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={handleRegenerateClick} disabled={loading}>
+            Regenerate
+          </Button>
+          <Button onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAccept} 
+            variant="contained" 
+            disabled={loading || (type !== 'description' && !selectedSuggestions.some(s => s))}
+          >
+            Accept {type === 'description' ? 'Changes' : 'Selected'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 } 

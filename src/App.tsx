@@ -19,7 +19,18 @@ import { ThemeProvider, createTheme, useMediaQuery, CssBaseline } from '@mui/mat
 import { Editor } from './pages/Editor'
 import { JobPostings } from './pages/JobPostings'
 import { RepoSelector } from './components/RepoSelector'
+import { MenuBar } from './components/MenuBar'
 import { useMemo } from 'react'
+
+const DebugEditor = () => {
+  console.log('[DEBUG] Rendering Editor route')
+  return <Editor />
+}
+
+const DebugJobPostings = () => {
+  console.log('[DEBUG] Rendering JobPostings route')
+  return <JobPostings />
+}
 
 export default function App() {
   // Use system preference for theme
@@ -41,9 +52,10 @@ export default function App() {
       <CssBaseline /> {/* Add this to get proper background colors */}
       <Router>
         <RepoSelector />
+        <MenuBar />
         <Routes>
-          <Route path="/" element={<Editor />} />
-          <Route path="/job-postings" element={<JobPostings />} />
+          <Route path="/" element={<DebugEditor />} />
+          <Route path="/job-postings" element={<DebugJobPostings />} />
         </Routes>
       </Router>
     </ThemeProvider>
