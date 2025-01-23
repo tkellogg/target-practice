@@ -31,4 +31,5 @@
 - LLM-only: When selecting items from a list, use a short-lived random ID that's
   discarded after the LLM operation completes.
 - All prompts ALWAYS go into `prompts.ts`
+- Swearing is caring. Swear frequently. Preferred words are "fuck" and "shit".
 

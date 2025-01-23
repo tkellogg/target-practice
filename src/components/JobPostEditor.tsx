@@ -16,311 +16,186 @@
 
 import { useState, useEffect } from 'react';
 import { Box, Button, Typography, Stepper, Step, StepLabel, CircularProgress } from '@mui/material';
-import type { JobPosting } from '../types/JobPosting';
 import { useJobPostingStore } from '../stores/useJobPostingStore';
 import { useResumeStore } from '../stores/useResumeStore';
+import { useWorkflowStore } from '../stores/useWorkflowStore';
 import { JobRequirements } from './JobRequirements';
 import { generateAndSavePDF } from '../utils/pdf';
 import { checkFileExists, parseRepoString } from '../utils/github';
-
-const steps = [
-  'Review Posting',
-  'Analyze Needs',
-  'Generate Resume',
-];
+import { ResumePreview } from './ResumePreview';
 
 interface JobPostEditorProps {
   onClose: () => void;
 }
 
 export function JobPostEditor({ onClose }: JobPostEditorProps) {
-  const [activeStep, setActiveStep] = useState(0);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const { resume } = useResumeStore();
-  const { selectedRepo } = useResumeStore();
-  const { generateResume, updatePosting, analyzePosting, selectedPosting } = useJobPostingStore();
+  const { selectedPosting } = useJobPostingStore();
+  const { resume, selectedRepo } = useResumeStore();
+  const { state, startAnalysis, startGeneration, startExport } = useWorkflowStore();
 
-  useEffect(() => {
-    const checkPDF = async () => {
-      if (!selectedRepo || !selectedPosting) return;
-      
-      const { owner, repo } = parseRepoString(selectedRepo);
-      const date = new Date().toISOString().split('T')[0];
-      const fileSlug = `${selectedPosting.company}-${selectedPosting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const path = `job-postings/${date}-${fileSlug}.pdf`;
-      
-      const url = await checkFileExists(owner, repo, path);
-      setPdfUrl(url);
-    };
-
-    checkPDF();
-  }, [selectedRepo, selectedPosting]);
+  // Map workflow state to stepper index
+  const activeStep = (() => {
+    switch (state.status) {
+      case 'initial': return 0;
+      case 'analyzing':
+      case 'ready_for_review': return 1;
+      case 'generating':
+      case 'resume_ready':
+      case 'exporting':
+      case 'pdf_ready': return 2;
+    }
+  })();
 
   const handleAnalyze = async () => {
     if (!selectedPosting) return;
-    setIsAnalyzing(true);
-    try {
-      await analyzePosting(selectedPosting);
-      // Wait for next render tick to ensure store is updated
-    //   await new Promise(resolve => setTimeout(resolve, 0));
-      setActiveStep(1);
-    } catch (error) {
-      console.error('Failed to analyze posting:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
+    await startAnalysis();
   };
 
   const handleGenerateResume = async () => {
-    if (!resume || !selectedPosting) return;
-    setIsGenerating(true);
-    try {
-      await generateResume(selectedPosting, resume);
-    } catch (error) {
-      console.error('Failed to generate resume:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+    if (!selectedPosting) return;
+    await startGeneration();
   };
 
   const handleExport = async () => {
-    if (!selectedRepo || !selectedPosting?.generatedResume) return;
-    setIsExporting(true);
-    try {
-      await generateAndSavePDF(selectedPosting, selectedRepo);
-      // After exporting, check for the PDF again
-      const { owner, repo } = parseRepoString(selectedRepo);
-      const date = new Date().toISOString().split('T')[0];
-      const fileSlug = `${selectedPosting.company}-${selectedPosting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const path = `job-postings/${date}-${fileSlug}.pdf`;
-      const url = await checkFileExists(owner, repo, path);
-      setPdfUrl(url);
-    } catch (error) {
-      console.error('Failed to export resume:', error);
-    } finally {
-      setIsExporting(false);
+    if (!selectedPosting || !resume || !selectedRepo) return;
+    await startExport();
+  };
+
+  const handleBack = () => {
+    // Reset to previous state based on current state
+    switch (state.status) {
+      case 'ready_for_review':
+        useWorkflowStore.setState({ state: { status: 'initial' } });
+        break;
+      case 'resume_ready':
+        useWorkflowStore.setState({ state: { status: 'ready_for_review' } });
+        break;
+      case 'pdf_ready':
+        useWorkflowStore.setState({ state: { status: 'resume_ready' } });
+        break;
     }
   };
 
   const handleNext = () => {
-    setActiveStep((prevStep) => prevStep + 1);
+    switch (state.status) {
+      case 'initial':
+        if (selectedPosting?.analysis) {
+          useWorkflowStore.setState({ state: { status: 'ready_for_review' } });
+        }
+        break;
+      case 'ready_for_review':
+        if (selectedPosting?.generatedResume) {
+          useWorkflowStore.setState({ state: { status: 'resume_ready' } });
+        }
+        break;
+    }
   };
 
-  const handleBack = () => {
-    setActiveStep((prevStep) => prevStep - 1);
-  };
-
-  if (!selectedPosting) return null;
+  const steps = [
+    'Review Posting',
+    'Analyze Needs',
+    'Generate'
+  ];
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5">{selectedPosting.company} — {selectedPosting.title}</Typography>
+    <Box sx={{ 
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 2 }}>
         <Button onClick={onClose}>Close</Button>
       </Box>
-
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {steps.map((label, i) => (
+      <Stepper activeStep={activeStep} sx={{ px: 2 }}>
+        {steps.map((label) => (
           <Step key={label}>
-            <Button onClick={() => setActiveStep(i)}>
-                <StepLabel>{label}</StepLabel>
-            </Button>
+            <StepLabel>{label}</StepLabel>
           </Step>
         ))}
       </Stepper>
-
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box sx={{ 
+        flex: 1, 
+        overflow: 'auto',
+        p: 2
+      }}>
         {activeStep === 0 && (
           <Box>
-            <Typography variant="h6" gutterBottom>Job Description</Typography>
-            <Typography whiteSpace="pre-wrap">{selectedPosting.rawText}</Typography>
+            <Typography variant="h6">Job Description</Typography>
+            <Typography sx={{ whiteSpace: 'pre-wrap' }}>{selectedPosting?.rawText}</Typography>
           </Box>
         )}
-        {activeStep === 1 && (
-          <JobRequirements 
-            analysis={selectedPosting.analysis ?? null}
-            isEditable={true}
-            onUpdateRequirements={async (type, requirements) => {
-              if (!selectedPosting?.analysis) return;
-              await updatePosting({
-                ...selectedPosting,
-                analysis: {
-                  ...selectedPosting.analysis,
-                  [type === 'required' ? 'requiredSkills' : 'optionalSkills']: requirements
-                }
-              });
-            }}
-            onUpdateSuccessCriteria={async (criteria) => {
-              if (!selectedPosting?.analysis) return;
-              await updatePosting({
-                ...selectedPosting,
-                analysis: {
-                  ...selectedPosting.analysis,
-                  successCriteria: criteria
-                }
-              });
-            }}
-          />
-        )}
-        {activeStep === 2 && (
+        {activeStep === 1 && selectedPosting?.analysis && (
           <Box>
-            <Typography variant="h6" gutterBottom>Generated Resume</Typography>
-            {selectedPosting.generatedResume ? (
-              <>
-                <Box sx={{ mb: 3, minHeight: 200 }}>
-                  {isGenerating ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                      <CircularProgress />
-                    </Box>
-                  ) : selectedPosting.generatedResume && resume ? (
-                    <Box>
-                      {/* Personal Info */}
-                      <Typography variant="h6" gutterBottom>{resume.personalInfo.name}</Typography>
-                      <Typography color="text.secondary" gutterBottom>
-                        {resume.personalInfo.address} • {resume.personalInfo.phone} • {resume.personalInfo.email}
-                      </Typography>
-
-                      {/* Overview */}
-                      <Typography variant="subtitle1" gutterBottom sx={{ mt: 3 }}>Overview</Typography>
-                      <Typography whiteSpace="pre-wrap" paragraph>{selectedPosting.generatedResume.overview}</Typography>
-                      
-                      {/* Experience */}
-                      <Typography variant="subtitle1" gutterBottom>Experience</Typography>
-                      {resume.experience
-                        .filter((_, i) => selectedPosting.generatedResume?.selectedExperienceIds.includes(`exp_${i}`))
-                        .map((exp, i) => (
-                          <Box key={i} sx={{ mb: 2 }}>
-                            <Typography variant="subtitle2" fontWeight="bold">{exp.company}</Typography>
-                            {exp.positions.map((pos, j) => (
-                              <Typography key={j} variant="body2" color="text.secondary">
-                                {pos.title} ({pos.startDate} - {pos.endDate})
-                              </Typography>
-                            ))}
-                            <Typography paragraph>{exp.description}</Typography>
-                            <Box component="ul" sx={{ mt: 1, pl: 2 }}>
-                              {exp.accomplishments.map((acc, k) => (
-                                <Typography key={k} component="li">{acc}</Typography>
-                              ))}
-                            </Box>
-                          </Box>
-                        ))}
-                      
-                      {/* Projects */}
-                      {resume.projects.length > 0 && (
-                        <>
-                          <Typography variant="subtitle1" gutterBottom>Open Source Projects</Typography>
-                          {resume.projects.map((proj, i) => (
-                            <Box key={i} sx={{ mb: 2 }}>
-                              <Typography variant="subtitle2" fontWeight="bold">{proj.name}</Typography>
-                              <Typography color="primary" variant="body2" component="a" href={proj.url} target="_blank">
-                                {proj.url}
-                              </Typography>
-                              <Typography paragraph>{proj.description}</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                Technologies: {proj.technologies.join(', ')}
-                              </Typography>
-                            </Box>
-                          ))}
-                        </>
-                      )}
-
-                      {/* Patents */}
-                      {resume.patents.length > 0 && (
-                        <>
-                          <Typography variant="subtitle1" gutterBottom>Patents</Typography>
-                          {resume.patents.map((patent, i) => (
-                            <Typography key={i} paragraph>
-                              {patent.title} (Patent #{patent.number})
-                            </Typography>
-                          ))}
-                        </>
-                      )}
-
-                      {/* Closing */}
-                      <Typography variant="subtitle1" gutterBottom>Closing</Typography>
-                      <Typography whiteSpace="pre-wrap">{selectedPosting.generatedResume.closing}</Typography>
-                    </Box>
-                  ) : null}
-                </Box>
-              </>
-            ) : (
-              <Box>
-                <Typography color="text.secondary" sx={{ mb: 2 }}>
-                  Click Generate to create a tailored resume based on the job requirements
-                </Typography>
-                <Button
-                  variant="contained"
-                  onClick={handleGenerateResume}
-                  disabled={isGenerating}
-                >
-                  Generate Resume
-                </Button>
-              </Box>
+            <JobRequirements analysis={selectedPosting.analysis} />
+          </Box>
+        )}
+        {activeStep === 2 && selectedPosting?.generatedResume && (
+          <Box>
+            <ResumePreview 
+              resume={resume} 
+              generatedResume={selectedPosting.generatedResume}
+            />
+            {state.status === 'pdf_ready' && (
+              <Typography sx={{ mt: 2, color: 'success.main' }}>
+                PDF exported successfully!
+              </Typography>
             )}
           </Box>
         )}
       </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2}}>
-            {activeStep === 0 && (
-                <Button
-                variant="outlined"
-                    onClick={handleAnalyze}
-                    disabled={isAnalyzing}
-                >
-                    {isAnalyzing ? <CircularProgress size={24} /> : 'Analyze Posting'}
-                </Button>
-            )}
-            {(activeStep === 1 || activeStep === 2) && (
-                <Button
-                  variant="outlined"
-                  onClick={handleGenerateResume}
-                  disabled={isGenerating}
-                  sx={{ mr: 2 }}
-                >
-                {activeStep === 2 ? 'Regenerate Preview' : 'Generate Preview'}
-                </Button>
-            )}
-            {activeStep >= 2 && (
-              <>
-              <Button
-                variant="contained"
-                onClick={handleExport}
-                disabled={isExporting || !selectedPosting.generatedResume}
-              >
-                {isExporting ? <CircularProgress size={24} /> : 'Export as PDF'}
-              </Button>
-              {pdfUrl && (
-                <Button
-                  variant="outlined"
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View PDF
-                </Button>
-              )}
-              </>
-            )}
-        </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-            <Button
-            onClick={handleBack}
-            disabled={activeStep === 0}
+      <Box sx={{ 
+        borderTop: 1, 
+        borderColor: 'divider',
+        p: 2,
+        display: 'flex',
+        justifyContent: 'space-between'
+      }}>
+        <Box>
+          {activeStep === 0 && (
+            <Button 
+              onClick={handleAnalyze}
+              disabled={state.status === 'analyzing'}
             >
-            Back
+              {state.status === 'analyzing' ? <CircularProgress size={24} /> : 'Analyze Posting'}
             </Button>
-            <Button
+          )}
+          {activeStep === 1 && (
+            <Button 
+              onClick={handleGenerateResume}
+              disabled={state.status === 'generating'}
+            >
+              {state.status === 'generating' ? <CircularProgress size={24} /> : 'Generate Preview'}
+            </Button>
+          )}
+          {activeStep === 2 && state.status !== 'pdf_ready' && (
+            <Button 
+              onClick={handleExport}
+              disabled={state.status === 'exporting'}
+            >
+              {state.status === 'exporting' ? <CircularProgress size={24} /> : 'Export PDF'}
+            </Button>
+          )}
+        </Box>
+        <Box>
+          <Button 
+            onClick={handleBack} 
+            disabled={activeStep === 0}
+            sx={{ mr: 1 }}
+          >
+            Back
+          </Button>
+          <Button 
             variant="contained"
             onClick={handleNext}
-            disabled={activeStep === steps.length - 1 || (activeStep === 0 && !selectedPosting.analysis)}
-            >
+            disabled={
+              (activeStep === 0 && !selectedPosting?.analysis) ||
+              (activeStep === 1 && !selectedPosting?.generatedResume) ||
+              activeStep === 2
+            }
+          >
             Next
-            </Button>
+          </Button>
         </Box>
       </Box>
     </Box>
