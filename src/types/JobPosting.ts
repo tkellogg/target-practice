@@ -36,5 +36,8 @@ export interface JobAnalysis {
 export interface GeneratedResume {
   overview: string;
   closing: string;
-  selectedExperienceIds: string[];  // IDs of selected experience items
+  selectedExperienceAccomplishments: Record<string, string[]>;  // exp_id -> acc_ids
+  selectedExperienceSkills: Record<string, string[]>;  // exp_id -> skill_ids
+  selectedProjectAccomplishments: Record<string, string[]>;  // proj_id -> acc_ids
+  selectedProjectSkills: Record<string, string[]>;  // proj_id -> skill_ids
 } 

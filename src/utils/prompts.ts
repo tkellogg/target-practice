@@ -22,6 +22,12 @@ type Message = {
   content: string
 }
 
+type ExperienceMapItem = {
+  expId: string;
+  skills: Array<{ id: string; text: string; }>;
+  accomplishments: Array<{ id: string; text: string; }>;
+};
+
 /**
  * Generates conversation starter questions for a job experience
  */
@@ -115,10 +121,33 @@ Please respond with a JSON object containing:
 }
 
 /**
- * Selects which experiences to include in a targeted resume
+ * Selects which accomplishments and skills to include in a targeted resume
  */
 export function selectExperiencesPrompt(posting: JobPosting, resume: Resume, experienceIds: string[]): string {
-  return `You are a professional resume writer selecting which job experiences to include in a targeted resume.
+  // Generate random IDs for each skill and accomplishment
+  const generateId = () => Math.random().toString(36).substring(2, 10);
+  
+  // Map of generated IDs to track what was selected
+  const experienceMap = resume.experience.map((exp, i) => ({
+    expId: `exp_${i}`,
+    skills: exp.skills.map(skill => ({ id: `skill_${generateId()}`, text: skill })),
+    accomplishments: exp.accomplishments.map(acc => ({ id: `acc_${generateId()}`, text: acc }))
+  }));
+
+  // Debug log the mapping
+  console.log('[DEBUG] Experience Map:');
+  experienceMap.forEach((exp, i) => {
+    console.log(`\nExperience ${i} (${exp.expId}):`);
+    console.log('Skills:');
+    exp.skills.forEach(s => console.log(`  ${s.id} -> ${s.text}`));
+    console.log('Accomplishments:');
+    exp.accomplishments.forEach(a => console.log(`  ${a.id} -> ${a.text}`));
+  });
+
+  // Store the map for later use
+  (selectExperiencesPrompt as any).experienceMap = experienceMap;
+
+  return `You are a professional resume writer selecting which accomplishments and skills to include in a targeted resume.
 
 Job Description:
 ${posting.rawText}
@@ -130,25 +159,40 @@ Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
 Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
 
 Available Experiences:
-${resume.experience.map((exp, i) => `
-ID: ${experienceIds[i]}
-Company: ${exp.company}
-Description: ${exp.description}
-Skills: ${exp.skills.join(', ')}
+${experienceMap.map(exp => `
+ID: ${exp.expId}
+Company: ${resume.experience[parseInt(exp.expId.split('_')[1])].company}
+Description: ${resume.experience[parseInt(exp.expId.split('_')[1])].description}
+Skills:
+${exp.skills.map(s => `${s.id}: ${s.text}`).join('\n')}
 Accomplishments:
-${exp.accomplishments.join('\n')}
+${exp.accomplishments.map(a => `${a.id}: ${a.text}`).join('\n')}
 `).join('\n')}
+
+IMPORTANT: DO NOT select entire experiences. Instead, select specific accomplishments and skills within EACH experience that are most relevant to this job.
 
 Please respond with a JSON object containing:
 {
-  "selectedIds": ["Array of experience IDs to include, in order of relevance"]
+  "selectedExperienceAccomplishments": {
+    "exp_0": ["acc_xyz123", "acc_abc456"],  // IDs of relevant accomplishments for experience 0
+    "exp_1": ["acc_def789", "acc_ghi012"],  // For experience 1, etc.
+    // Include ALL experiences, even if none selected
+  },
+  "selectedExperienceSkills": {
+    "exp_0": ["skill_jkl345", "skill_mno678"],  // IDs of relevant skills for experience 0
+    "exp_1": ["skill_pqr901", "skill_stu234"],  // For experience 1, etc.
+    // Include ALL experiences, even if none selected
+  }
 }`
 }
+
+// Add a property to store the map
+(selectExperiencesPrompt as any).experienceMap = null as ExperienceMapItem[] | null;
 
 /**
  * Generates a closing paragraph for a targeted resume
  */
-export function generateResumeClosingPrompt(posting: JobPosting, selectedExperiences: Experience[]): string {
+export function generateResumeClosingPrompt(posting: JobPosting, experiences: Experience[]): string {
   return `You are a professional resume writer. Write an 8-10 sentence closing that calls out specific experiences at specific jobs and correlates them to job requirements.
 
 Job Description:
@@ -160,8 +204,8 @@ Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
 Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
 Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
 
-Selected Experiences:
-${selectedExperiences.map(exp => `
+Available Experiences:
+${experiences.map(exp => `
 Company: ${exp.company}
 Description: ${exp.description}
 Skills: ${exp.skills.join(', ')}

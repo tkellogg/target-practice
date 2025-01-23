@@ -4,7 +4,22 @@ This document describes how the targeted resume is previewed and then exported (
 
 ---
 
-## 1. Preview vs. Export
+## 1. Content
+1. **Source**
+   - Copy all sections from the master resume: All experience items, all projects, all education, all patents 
+      - DO NOT alter the wording of anything
+      - DO NOT use an LLM to format any of these
+   - Generate Overview & Closing sections specific to this job, highlighting aspects that target this job posting
+
+1. **Filtering**
+   - Use an LLM to remove accomplishments & skills for each experience item & project that aren't relevant to this job posting
+      - *Details*: When interacting with the LLM, use a random ID to select items (DO NOT allow the LLM to rephrase)
+   - Perform filtering for experience & projects for each experience item & project
+   - Filtering **ONLY** applies to accomplishments and skills
+
+---
+
+## 2. Preview vs. Export
 1. **Identical Content**  
    - The preview and exported PDF show exactly the same information.  
    - The preview has special UI elements (e.g., badges or editing handles) that the PDF omits.
@@ -14,7 +29,7 @@ This document describes how the targeted resume is previewed and then exported (
 
 ---
 
-## 2. Flow & Interaction
+## 3. Flow & Interaction
 1. **Preview Flow**  
    - The user lands on the preview screen, which displays the targeted resume.  
    - Data model has separate items for job title, company, dates, job desc,
@@ -38,7 +53,7 @@ This document describes how the targeted resume is previewed and then exported (
 
 ---
 
-## 3. LLM Flagged Issues
+## 4. LLM Flagged Issues
 1. **Badges or Indicators**  
    - Each content block (summary, experience item, etc.) can have a small indicator showing how many flagged issues exist.  
    - When clicked, a side-by-side view appears on the right to show the user the flagged issues.
@@ -54,7 +69,7 @@ This document describes how the targeted resume is previewed and then exported (
 
 ---
 
-## 4. Regenerating Sections
+## 5. Regenerating Sections
 1. **Item-Level Regeneration**  
    - Each flagged item can be revised by itself. Clicking “Regenerate” opens a prompt where the user can supply context or instructions. By "item", we're
    referring to top-level items, like a job in the experience section, or a 
@@ -70,7 +85,7 @@ This document describes how the targeted resume is previewed and then exported (
 
 ---
 
-## 5. Final Export
+## 6. Final Export
 1. **Push to PDF**  
    - Once the user is satisfied with the entire preview, they export to PDF.  
    - The exported PDF must precisely mirror the preview’s text and structure.
@@ -82,7 +97,7 @@ This document describes how the targeted resume is previewed and then exported (
 
 ---
 
-## 6. Future Enhancements (Optional)
+## 7. Future Enhancements (Optional)
 1. **Side-by-Side Comparison**  
    - In future updates, we may offer a way to view the original master resume text beside the newly targeted version.  
 2. **Better Real-Time Updates**  

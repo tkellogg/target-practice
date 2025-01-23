@@ -106,8 +106,19 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
 
     // Experience section
     y = addSectionHeader('Experience', y)
-    for (const job of resume.experience.filter((_, i) => 
-      posting.generatedResume?.selectedExperienceIds.includes(`exp_${i}`))) {
+    // Filter experience items based on selected accomplishments/skills
+    const filteredExperience = resume.experience.map((exp, i) => {
+      const expId = `exp_${i}`;
+      const selectedAccomplishments = posting.generatedResume?.selectedExperienceAccomplishments[expId] || [];
+      const selectedSkills = posting.generatedResume?.selectedExperienceSkills[expId] || [];
+
+      return {
+        ...exp,
+        accomplishments: exp.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
+        skills: exp.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
+      };
+    });
+    for (const job of filteredExperience) {
       y = checkNewPage(y, lineHeight * 4) // Space for company and at least one position
       
       // Company name in bold
@@ -136,7 +147,19 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
     // Projects section
     if (resume.projects.length > 0) {
       y = addSectionHeader('Open Source Projects', y)
-      for (const project of resume.projects) {
+      // Filter project items based on selected accomplishments/skills
+      const filteredProjects = resume.projects.map((proj, i) => {
+        const projId = `proj_${i}`;
+        const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[projId] || [];
+        const selectedSkills = posting.generatedResume?.selectedProjectSkills[projId] || [];
+
+        return {
+          ...proj,
+          accomplishments: proj.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
+          skills: proj.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
+        };
+      });
+      for (const project of filteredProjects) {
         y = checkNewPage(y, lineHeight * 4) // Space for project name and details
         
         doc.setFont('helvetica', 'bold')
