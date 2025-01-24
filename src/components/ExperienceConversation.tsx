@@ -25,6 +25,7 @@ import { EditableText } from '../components/EditableText';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import { EditableMarkdown } from './EditableMarkdown';
+import { useTheme } from '@mui/material/styles';
 
 interface Props {
   experience: Experience;
@@ -35,11 +36,13 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
   const [inputValue, setInputValue] = useState('');
   const [summary, setSummary] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const { messages, suggestions, isLoading, addMessage, setSuggestions, setLoading, reset } = useExperienceConversationStore();
   const updateResume = useResumeStore(state => state.updateResume);
+  const theme = useTheme();
 
   // Initialize summary from existing anecdote if we're editing
   useEffect(() => {
@@ -57,16 +60,25 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
   useEffect(() => {
     const generateSuggestions = async () => {
       setLoading(true);
+      setError(null);
       try {
         const response = await fetch('/api/suggestions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ experience })
         });
+        if (!response.ok) {
+          throw new Error(`Failed to load suggestions: ${response.status} ${response.statusText}`);
+        }
         const data = await response.json();
+        if (!data.suggestions) {
+          throw new Error('No suggestions returned from server');
+        }
         setSuggestions(data.suggestions);
       } catch (error) {
         console.error('Failed to generate suggestions:', error);
+        setError(error instanceof Error ? error.message : 'Failed to load suggestions');
+        setSuggestions([]); // Set empty array to prevent undefined error
       } finally {
         setLoading(false);
       }
@@ -176,6 +188,21 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
         </IconButton>
       </Box>
 
+      {/* Error message */}
+      {error && (
+        <Box sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+          <Typography>{error}</Typography>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={() => { setError(null) }}
+            sx={{ mt: 1 }}
+          >
+            Close
+          </Button>
+        </Box>
+      )}
+
       {/* Main content */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* Left pane - Experience and Summary */}
@@ -185,10 +212,11 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           borderColor: 'divider',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'auto'
+          overflow: 'auto',
+          maxHeight: 'calc(80vh - 64px)' // Account for header height
         }}>
           {/* Experience section */}
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
             <Typography variant="subtitle1" gutterBottom>
               {experience.company}
             </Typography>
@@ -201,7 +229,7 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           </Box>
 
           {/* Summary section */}
-          <Box sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ p: 2, flex: 1, overflow: 'auto' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="subtitle2">Summary:</Typography>
               <Box>
@@ -229,7 +257,7 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           </Box>
 
           {/* Save & Exit button */}
-          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', flexShrink: 0 }}>
             <Button
               variant="contained"
               onClick={handleSaveAndExit}
@@ -246,7 +274,8 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          maxHeight: 'calc(80vh - 64px)' // Account for header height
         }}>
           {/* Conversation starters */}
           {!messages.length && suggestions.length > 0 && (
@@ -273,56 +302,51 @@ export const ExperienceConversation = ({ experience, onClose }: Props) => {
           <Box 
             ref={messagesContainerRef}
             sx={{ 
-              flex: 1,
+              flex: 1, 
               overflow: 'auto',
               p: 2,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2
+              bgcolor: theme => theme.palette.mode === 'dark' ? 'grey.900' : 'background.paper'
             }}
           >
             {messages.map((message, index) => (
               <Box 
-                key={index}
-                sx={{
-                  alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '80%'
+                key={index} 
+                sx={{ 
+                  mb: 2,
+                  p: 2,
+                  borderRadius: 1,
+                  bgcolor: theme => message.role === 'assistant' 
+                    ? (theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100')
+                    : (theme.palette.mode === 'dark' ? 'primary.900' : 'primary.50'),
+                  color: theme => theme.palette.mode === 'dark' ? 'common.white' : 'common.black'
                 }}
               >
-                <Paper 
-                  elevation={1}
-                  sx={{ 
-                    p: 2,
-                    bgcolor: message.role === 'user' ? 'primary.light' : 'background.paper'
-                  }}
-                >
+                <Typography variant="body1">
                   <Markdown>{message.content}</Markdown>
-                </Paper>
+                </Typography>
               </Box>
             ))}
             <div ref={messagesEndRef} />
           </Box>
 
-          {/* Input */}
+          {/* Input area */}
           <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
             <TextField
               fullWidth
               multiline
-              maxRows={4}
+              rows={3}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Type your message..."
               disabled={isLoading}
-              InputProps={{
-                endAdornment: (
-                  <Button
-                    onClick={() => handleSendMessage(inputValue)}
-                    disabled={!inputValue.trim() || isLoading}
-                  >
-                    Send
-                  </Button>
-                )
+              placeholder="Type your message..."
+              sx={{
+                '& .MuiInputBase-input': {
+                  color: theme => theme.palette.mode === 'dark' ? 'common.white' : 'common.black'
+                },
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: theme => theme.palette.mode === 'dark' ? 'grey.900' : 'background.paper'
+                }
               }}
             />
           </Box>
