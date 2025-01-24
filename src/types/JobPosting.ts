@@ -40,4 +40,9 @@ export interface GeneratedResume {
   selectedExperienceSkills: Record<string, string[]>;  // exp_id -> skill_ids
   selectedProjectAccomplishments: Record<string, string[]>;  // proj_id -> acc_ids
   selectedProjectSkills: Record<string, string[]>;  // proj_id -> skill_ids
+  experienceMap: Record<number, { 
+    id: string,
+    accomplishments: { id: string; text: string }[],
+    skills: { id: string; text: string }[]
+  }>;
 } 

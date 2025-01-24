@@ -128,24 +128,18 @@ export function selectExperiencesPrompt(posting: JobPosting, resume: Resume, exp
   const generateId = () => Math.random().toString(36).substring(2, 10);
   
   // Map of generated IDs to track what was selected
-  const experienceMap = resume.experience.map((exp, i) => ({
-    expId: `exp_${i}`,
-    skills: exp.skills.map(skill => ({ id: `skill_${generateId()}`, text: skill })),
-    accomplishments: exp.accomplishments.map(acc => ({ id: `acc_${generateId()}`, text: acc }))
-  }));
-
-  // Debug log the mapping
-  console.log('[DEBUG] Experience Map:');
-  experienceMap.forEach((exp, i) => {
-    console.log(`\nExperience ${i} (${exp.expId}):`);
-    console.log('Skills:');
-    exp.skills.forEach(s => console.log(`  ${s.id} -> ${s.text}`));
-    console.log('Accomplishments:');
-    exp.accomplishments.forEach(a => console.log(`  ${a.id} -> ${a.text}`));
-  });
-
-  // Store the map for later use
-  (selectExperiencesPrompt as any).experienceMap = experienceMap;
+  const experienceMap = resume.experience.reduce((map, exp, i) => {
+    map[i] = {
+      id: `exp_${i}`,
+      skills: exp.skills.map(skill => ({ id: `skill_${generateId()}`, text: skill })),
+      accomplishments: exp.accomplishments.map(acc => ({ id: `acc_${generateId()}`, text: acc }))
+    };
+    return map;
+  }, {} as Record<number, { 
+    id: string,
+    accomplishments: { id: string; text: string }[],
+    skills: { id: string; text: string }[]
+  }>);
 
   return `You are a professional resume writer selecting which accomplishments and skills to include in a targeted resume.
 
@@ -159,10 +153,10 @@ Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
 Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
 
 Available Experiences:
-${experienceMap.map(exp => `
-ID: ${exp.expId}
-Company: ${resume.experience[parseInt(exp.expId.split('_')[1])].company}
-Description: ${resume.experience[parseInt(exp.expId.split('_')[1])].description}
+${Object.entries(experienceMap).map(([i, exp]) => `
+ID: ${exp.id}
+Company: ${resume.experience[parseInt(i)].company}
+Description: ${resume.experience[parseInt(i)].description}
 Skills:
 ${exp.skills.map(s => `${s.id}: ${s.text}`).join('\n')}
 Accomplishments:
@@ -185,9 +179,6 @@ Please respond with a JSON object containing:
   }
 }`
 }
-
-// Add a property to store the map
-(selectExperiencesPrompt as any).experienceMap = null as ExperienceMapItem[] | null;
 
 /**
  * Generates a closing paragraph for a targeted resume

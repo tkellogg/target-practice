@@ -98,8 +98,8 @@ The frontend runs on port 3001 and the backend on port 3002.
 ## File Structure
 
 - `/full-resume.xml` - Complete resume data (stored in your private repo)
-- `/job-postings/yyyy-mm-dd-{company}-{title}.xml` - Job posting data
-- `/job-postings/yyyy-mm-dd-{company}-{title}.pdf` - Generated PDFs
+- `/job-postings/{company}-{title}.xml` - Job posting data
+- `/job-postings/{company}-{title}.pdf` - Generated PDFs
 
 ## Development
 

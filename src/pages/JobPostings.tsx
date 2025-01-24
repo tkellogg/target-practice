@@ -60,9 +60,7 @@ export function JobPostings() {
   };
 
   const formatId = (company: string, title: string): string => {
-    const date = new Date().toISOString().split('T')[0];
-    const slug = `${company}-${title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    return `${date}-${slug}`;
+    return `${company}-${title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   };
 
   if (!selectedRepo) {

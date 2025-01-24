@@ -48,6 +48,7 @@ async function getFullResume(selectedRepo: string): Promise<Resume> {
 }
 
 export async function generateAndSavePDF(posting: JobPosting, selectedRepo: string) {
+  console.log('[DEBUG] Starting PDF generation for:', posting.company, posting.title);
   const resume = await getFullResume(selectedRepo)
   const doc = new jsPDF()
   const margin = 20
@@ -99,109 +100,145 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
   doc.setFont('helvetica', 'normal')
   y = addWrappedText(resume.personalInfo.address, y, 12) + lineHeight
 
+  // Add experience section
+  y = addSectionHeader('Experience', y);
+  
   if (posting.generatedResume) {
+    const { selectedExperienceAccomplishments, selectedExperienceSkills, experienceMap, overview, closing } = posting.generatedResume;
+    
     // Overview section
-    y = addSectionHeader('Overview', y)
-    y = addWrappedText(posting.generatedResume.overview, y) + lineHeight
+    y = addSectionHeader('Overview', y);
+    y = addWrappedText(overview, y) + lineHeight;
 
-    // Experience section
-    y = addSectionHeader('Experience', y)
-    // Filter experience items based on selected accomplishments/skills
-    const filteredExperience = resume.experience.map((exp, i) => {
+    resume.experience.forEach((exp, i) => {
       const expId = `exp_${i}`;
-      const selectedAccomplishments = posting.generatedResume?.selectedExperienceAccomplishments[expId] || [];
-      const selectedSkills = posting.generatedResume?.selectedExperienceSkills[expId] || [];
+      const selectedAccomplishments = selectedExperienceAccomplishments[expId] || [];
+      const selectedSkills = selectedExperienceSkills[expId] || [];
+      const expMap = experienceMap[i];
 
-      return {
-        ...exp,
-        accomplishments: exp.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
-        skills: exp.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
-      };
-    });
-    for (const job of filteredExperience) {
-      y = checkNewPage(y, lineHeight * 4) // Space for company and at least one position
+      if (!expMap) {
+        console.warn(`No experience map found for experience ${i}`);
+        return;
+      }
+
+      // Check if we need a new page for this experience block
+      y = checkNewPage(y, lineHeight * 6);
+
+      // Company and position
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      y = addWrappedText(exp.company, y, 14);
       
-      // Company name in bold
-      doc.setFont('helvetica', 'bold')
-      y = addWrappedText(job.company, y, 14)
-      doc.setFont('helvetica', 'normal')
-
-      // Positions
-      for (const pos of job.positions) {
-        y = checkNewPage(y)
-        y = addWrappedText(`${pos.title} (${pos.startDate} - ${pos.endDate})`, y, 12)
-      }
-
-      // Job description
-      y = checkNewPage(y)
-      y = addWrappedText(job.description, y) + lineHeight/2
-
-      // Accomplishments
-      for (const acc of job.accomplishments) {
-        y = checkNewPage(y)
-        y = addWrappedText(`• ${acc}`, y) + lineHeight/2
-      }
-      y += lineHeight
-    }
-
-    // Projects section
-    if (resume.projects.length > 0) {
-      y = addSectionHeader('Open Source Projects', y)
-      // Filter project items based on selected accomplishments/skills
-      const filteredProjects = resume.projects.map((proj, i) => {
-        const projId = `proj_${i}`;
-        const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[projId] || [];
-        const selectedSkills = posting.generatedResume?.selectedProjectSkills[projId] || [];
-
-        return {
-          ...proj,
-          accomplishments: proj.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
-          skills: proj.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
-        };
+      exp.positions.forEach(pos => {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        y = addWrappedText(`${pos.title} (${pos.startDate} - ${pos.endDate})`, y);
       });
-      for (const project of filteredProjects) {
-        y = checkNewPage(y, lineHeight * 4) // Space for project name and details
-        
-        doc.setFont('helvetica', 'bold')
-        y = addWrappedText(project.name, y, 14)
-        doc.setFont('helvetica', 'normal')
 
-        if (project.url) {
-          y = checkNewPage(y)
-          doc.setTextColor(0, 0, 255)
-          y = addWrappedText(project.url, y, 10)
-          doc.setTextColor(0)
-        }
+      // Description
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      y = addWrappedText(exp.description, y);
 
-        y = checkNewPage(y)
-        y = addWrappedText(project.description, y) + lineHeight/2
-        y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, 10) + lineHeight
+      // Selected accomplishments
+      if (selectedAccomplishments.length > 0) {
+        y = checkNewPage(y, lineHeight * 2);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        y = addWrappedText('Key Accomplishments:', y);
+        doc.setFont('helvetica', 'normal');
+
+        exp.accomplishments.forEach((acc, j) => {
+          if (!expMap.accomplishments[j]) return;
+          const accId = expMap.accomplishments[j].id;
+          if (selectedAccomplishments.includes(accId)) {
+            y = checkNewPage(y, lineHeight * 2);
+            y = addWrappedText(`• ${acc}`, y);
+          }
+        });
       }
-    }
 
-    // Patents section
-    if (resume.patents.length > 0) {
-      y = addSectionHeader('Patents', y)
-      for (const patent of resume.patents) {
-        y = checkNewPage(y)
-        y = addWrappedText(`${patent.title} (Patent #${patent.number})`, y) + lineHeight
+      // Selected skills
+      if (selectedSkills.length > 0) {
+        y = checkNewPage(y, lineHeight * 2);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        y = addWrappedText('Skills Used:', y);
+        doc.setFont('helvetica', 'normal');
+
+        const skillsText = exp.skills
+          .map((skill, j) => {
+            if (!expMap.skills[j]) return null;
+            const skillId = expMap.skills[j].id;
+            return selectedSkills.includes(skillId) ? skill : null;
+          })
+          .filter(Boolean)
+          .join(', ');
+
+        y = addWrappedText(skillsText, y);
       }
-    }
+
+      y += lineHeight * 2;
+    });
 
     // Closing section
-    y = addSectionHeader('Closing', y)
-    y = addWrappedText(posting.generatedResume.closing, y)
+    y = addSectionHeader('Closing', y);
+    y = addWrappedText(closing, y);
+  }
+
+  // Projects section
+  if (resume.projects.length > 0) {
+    y = addSectionHeader('Open Source Projects', y)
+    // Filter project items based on selected accomplishments/skills
+    const filteredProjects = resume.projects.map((proj, i) => {
+      const projId = `proj_${i}`;
+      const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[projId] || [];
+      const selectedSkills = posting.generatedResume?.selectedProjectSkills[projId] || [];
+
+      return {
+        ...proj,
+        accomplishments: proj.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
+        skills: proj.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
+      };
+    });
+    for (const project of filteredProjects) {
+      y = checkNewPage(y, lineHeight * 4) // Space for project name and details
+      
+      doc.setFont('helvetica', 'bold')
+      y = addWrappedText(project.name, y, 14)
+      doc.setFont('helvetica', 'normal')
+
+      if (project.url) {
+        y = checkNewPage(y)
+        doc.setTextColor(0, 0, 255)
+        y = addWrappedText(project.url, y, 10)
+        doc.setTextColor(0)
+      }
+
+      y = checkNewPage(y)
+      y = addWrappedText(project.description, y) + lineHeight/2
+      y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, 10) + lineHeight
+    }
+  }
+
+  // Patents section
+  if (resume.patents.length > 0) {
+    y = addSectionHeader('Patents', y)
+    for (const patent of resume.patents) {
+      y = checkNewPage(y)
+      y = addWrappedText(`${patent.title} (Patent #${patent.number})`, y) + lineHeight
+    }
   }
 
   // Convert PDF to base64
   const pdfOutput = doc.output('arraybuffer')
   const base64PDF = arrayBufferToBase64(pdfOutput)
 
-  // Save to GitHub
-  const [owner, repo] = selectedRepo.split('/')
-  const date = new Date().toISOString().split('T')[0] // Format: yyyy-mm-dd
-  const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  const path = `job-postings/${date}-${fileSlug}.pdf`
+  // Before GitHub save
+  const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const path = `job-postings/${fileSlug}.pdf`;
+  console.log('[DEBUG] Attempting to save PDF at path:', path);
+  const { owner, repo } = parseRepoString(selectedRepo);
 
   try {
     // Check if file exists
@@ -239,9 +276,10 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
       }
     }
 
+    console.log('[DEBUG] Successfully saved PDF to GitHub at:', path);
     return path
   } catch (error) {
-    console.error('Failed to save PDF:', error)
+    console.error('[DEBUG] Failed to save PDF:', error)
     throw new Error('Failed to save PDF to GitHub')
   }
 } 

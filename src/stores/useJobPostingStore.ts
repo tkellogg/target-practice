@@ -58,6 +58,40 @@ function postingToXML(posting: JobPosting): string {
     parent.appendChild(elem);
   };
 
+  const addExperienceMap = (parent: Element, experienceMap: Record<number, { 
+    id: string,
+    accomplishments: { id: string; text: string }[],
+    skills: { id: string; text: string }[]
+  }>) => {
+    const elem = doc.createElement('experienceMap');
+    Object.entries(experienceMap).forEach(([index, exp]) => {
+      const expElem = doc.createElement('experience');
+      addElement(expElem, 'index', index);
+      addElement(expElem, 'id', exp.id);
+
+      const accomplishmentsElem = doc.createElement('accomplishments');
+      exp.accomplishments.forEach(acc => {
+        const accElem = doc.createElement('accomplishment');
+        addElement(accElem, 'id', acc.id);
+        addElement(accElem, 'text', acc.text);
+        accomplishmentsElem.appendChild(accElem);
+      });
+      expElem.appendChild(accomplishmentsElem);
+
+      const skillsElem = doc.createElement('skills');
+      exp.skills.forEach(skill => {
+        const skillElem = doc.createElement('skill');
+        addElement(skillElem, 'id', skill.id);
+        addElement(skillElem, 'text', skill.text);
+        skillsElem.appendChild(skillElem);
+      });
+      expElem.appendChild(skillsElem);
+
+      elem.appendChild(expElem);
+    });
+    parent.appendChild(elem);
+  };
+
   addElement(doc.documentElement, 'company', posting.company);
   addElement(doc.documentElement, 'title', posting.title);
   addElement(doc.documentElement, 'url', posting.url);
@@ -73,6 +107,9 @@ function postingToXML(posting: JobPosting): string {
     addMapElement(resume, 'selectedExperienceSkills', posting.generatedResume.selectedExperienceSkills);
     addMapElement(resume, 'selectedProjectAccomplishments', posting.generatedResume.selectedProjectAccomplishments);
     addMapElement(resume, 'selectedProjectSkills', posting.generatedResume.selectedProjectSkills);
+    
+    // Add experience map
+    addExperienceMap(resume, posting.generatedResume.experienceMap);
     
     doc.documentElement.appendChild(resume);
   }
@@ -129,13 +166,41 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
         return result;
       };
 
+      const parseExperienceMap = (parent: Element): Record<number, { 
+        id: string,
+        accomplishments: { id: string; text: string }[],
+        skills: { id: string; text: string }[]
+      }> => {
+        const result: Record<number, any> = {};
+        parent.querySelectorAll('experienceMap experience').forEach(exp => {
+          const index = parseInt(exp.querySelector('index')?.textContent ?? '0');
+          const id = exp.querySelector('id')?.textContent ?? '';
+
+          const accomplishments = Array.from(exp.querySelectorAll('accomplishments accomplishment'))
+            .map(acc => ({
+              id: acc.querySelector('id')?.textContent ?? '',
+              text: acc.querySelector('text')?.textContent ?? ''
+            }));
+
+          const skills = Array.from(exp.querySelectorAll('skills skill'))
+            .map(skill => ({
+              id: skill.querySelector('id')?.textContent ?? '',
+              text: skill.querySelector('text')?.textContent ?? ''
+            }));
+
+          result[index] = { id, accomplishments, skills };
+        });
+        return result;
+      };
+
       posting.generatedResume = {
         overview: generatedResumeElem.querySelector('overview')?.textContent ?? '',
         closing: generatedResumeElem.querySelector('closing')?.textContent ?? '',
         selectedExperienceAccomplishments: parseMap(generatedResumeElem, 'selectedExperienceAccomplishments item'),
         selectedExperienceSkills: parseMap(generatedResumeElem, 'selectedExperienceSkills item'),
         selectedProjectAccomplishments: parseMap(generatedResumeElem, 'selectedProjectAccomplishments item'),
-        selectedProjectSkills: parseMap(generatedResumeElem, 'selectedProjectSkills item')
+        selectedProjectSkills: parseMap(generatedResumeElem, 'selectedProjectSkills item'),
+        experienceMap: parseExperienceMap(generatedResumeElem)
       };
     }
 
@@ -230,9 +295,8 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
 
       const { owner, repo } = parseRepoString(selectedRepo);
       const xml = postingToXML(posting);
-      const date = new Date().toISOString().split('T')[0];
       const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const path = `job-postings/${date}-${fileSlug}.xml`;
+      const path = `job-postings/${fileSlug}.xml`;
 
       await saveFile(owner, repo, path, xml);
       await get().loadPostings();
@@ -250,8 +314,8 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
 
       const { owner, repo } = parseRepoString(selectedRepo);
       const xml = postingToXML(posting);
-      const date = posting.id.split('-').slice(0, 3).join('-');
-      const path = `job-postings/${date}-${posting.id.split('-').slice(3).join('-')}.xml`;
+      const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const path = `job-postings/${fileSlug}.xml`;
 
       await saveFile(owner, repo, path, xml);
       await get().loadPostings();
@@ -264,17 +328,34 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   generateResume: async (posting: JobPosting, resume: Resume) => {
     try {
       set({ isLoading: true, error: null });
-      
-      // First generate the prompt which will create the experience map
-      const prompt = selectExperiencesPrompt(posting, resume, []);
-      
-      // Now get the map that was just created
-      const experienceMap = (selectExperiencesPrompt as any).experienceMap as ExperienceMapItem[];
-      if (!experienceMap) {
-        throw new Error('Experience map not found');
-      }
 
-      // Call API to get selected IDs
+      // First generate the experience map
+      const prompt = selectExperiencesPrompt(posting, resume, []);
+      const experienceMap = resume.experience.reduce((map, exp, i) => {
+        const generateId = () => Math.random().toString(36).substring(2, 10);
+        map[i] = {
+          id: `exp_${i}`,
+          skills: exp.skills.map(skill => ({ id: `skill_${generateId()}`, text: skill })),
+          accomplishments: exp.accomplishments.map(acc => ({ id: `acc_${generateId()}`, text: acc }))
+        };
+        return map;
+      }, {} as Record<number, { 
+        id: string,
+        accomplishments: { id: string; text: string }[],
+        skills: { id: string; text: string }[]
+      }>);
+
+      // Debug log the mapping
+      console.log('[DEBUG] Experience Map:');
+      Object.entries(experienceMap).forEach(([i, exp]) => {
+        console.log(`\nExperience ${i} (${exp.id}):`);
+        console.log('Skills:');
+        exp.skills.forEach(s => console.log(`  ${s.id} -> ${s.text}`));
+        console.log('Accomplishments:');
+        exp.accomplishments.forEach(a => console.log(`  ${a.id} -> ${a.text}`));
+      });
+
+      // Get selected accomplishments and skills from the API
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -285,16 +366,13 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
       });
 
       const data = await response.json();
-      // Parse the JSON from the LLM response
-      const experienceJson = JSON.parse(
-        data.content[0].type === 'text'
-          ? data.content[0].text.substring(
-              data.content[0].text.indexOf('{'),
-              data.content[0].text.lastIndexOf('}') + 1
-            )
-          : '{}'
-      );
-      const { selectedExperienceAccomplishments, selectedExperienceSkills } = experienceJson;
+      const content = data.content[0].type === 'text'
+        ? data.content[0].text
+        : '';
+
+      // Extract JSON from the response
+      const jsonStr = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
+      const { selectedExperienceAccomplishments, selectedExperienceSkills } = JSON.parse(jsonStr);
 
       // Generate overview section
       const overviewResponse = await fetch('/api/analyze', {
@@ -341,7 +419,8 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         selectedExperienceAccomplishments: selectedExperienceAccomplishments || {},
         selectedExperienceSkills: selectedExperienceSkills || {},
         selectedProjectAccomplishments: {}, // Not implemented yet
-        selectedProjectSkills: {} // Not implemented yet
+        selectedProjectSkills: {}, // Not implemented yet
+        experienceMap
       };
 
       // Update posting with generated resume

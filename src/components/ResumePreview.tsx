@@ -28,10 +28,10 @@ interface Props {
 export function ResumePreview({ resume, generatedResume }: Props) {
   if (!resume) return null;
 
-  // Get the experience map that was used to generate the IDs
-  const experienceMap = (selectExperiencesPrompt as any).experienceMap;
+  // Get the experience map from the generated resume
+  const experienceMap = generatedResume.experienceMap;
   if (!experienceMap) {
-    console.error('Experience map not found');
+    console.error('Experience map not found in generatedResume');
     return null;
   }
 
@@ -59,6 +59,12 @@ export function ResumePreview({ resume, generatedResume }: Props) {
         const selectedSkills = generatedResume?.selectedExperienceSkills[expId] || [];
         const expMap = experienceMap[i];
 
+        // Skip if we don't have the experience map for this experience
+        if (!expMap) {
+          console.warn(`No experience map found for experience ${i}`);
+          return null;
+        }
+
         return (
           <Box key={i} mt={1}>
             <Typography variant="subtitle1">{exp.company}</Typography>
@@ -73,11 +79,16 @@ export function ResumePreview({ resume, generatedResume }: Props) {
             <Typography>{exp.description}</Typography>
 
             {/* Only show selected accomplishments */}
-            {selectedAccomplishments.length > 0 && (
+            {selectedAccomplishments.length > 0 && expMap.accomplishments && (
               <>
                 <Typography variant="subtitle2" mt={1}>Key Accomplishments:</Typography>
                 <ul>
                   {exp.accomplishments.map((acc, j) => {
+                    // Skip if we don't have the accomplishment map
+                    if (!expMap.accomplishments[j]) {
+                      console.warn(`No accomplishment map found for accomplishment ${j} in experience ${i}`);
+                      return null;
+                    }
                     // Look up the random ID that was generated for this accomplishment
                     const accId = expMap.accomplishments[j].id;
                     if (selectedAccomplishments.includes(accId)) {
@@ -90,11 +101,16 @@ export function ResumePreview({ resume, generatedResume }: Props) {
             )}
 
             {/* Only show selected skills */}
-            {selectedSkills.length > 0 && (
+            {selectedSkills.length > 0 && expMap.skills && (
               <>
                 <Typography variant="subtitle2" mt={1}>Skills Used:</Typography>
                 <Box display="flex" flexWrap="wrap" gap={1}>
                   {exp.skills.map((skill, j) => {
+                    // Skip if we don't have the skill map
+                    if (!expMap.skills[j]) {
+                      console.warn(`No skill map found for skill ${j} in experience ${i}`);
+                      return null;
+                    }
                     // Look up the random ID that was generated for this skill
                     const skillId = expMap.skills[j].id;
                     if (selectedSkills.includes(skillId)) {

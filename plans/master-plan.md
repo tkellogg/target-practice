@@ -62,8 +62,8 @@ The resume has the following structure.
 For each experience item, succinctly describe that experience independently of the job posting, but always implicitly allude
 to and highlight portions of the experience that demonstrate the user's suitability as a candidate for the role.
 
-Job postings are all stored in Github at `/job-postings/yyyy-mm-dd-{company}-{title}.xml`. Exported resumes are
-stored at `/job-postings/yyyy-mm-dd-{company}-{title}.pdf`. 
+Job postings are all stored in Github at `/job-postings/{company}-{title}.xml`. Exported resumes are
+stored at `/job-postings/{company}-{title}.pdf`. 
 
 The XML file for the job posting includes:
 - The job posting info

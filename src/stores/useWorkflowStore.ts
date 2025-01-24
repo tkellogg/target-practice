@@ -26,7 +26,7 @@ type WorkflowState =
   | { status: 'generating' }
   | { status: 'resume_ready' }
   | { status: 'exporting' }
-  | { status: 'pdf_ready' };
+  | { status: 'pdf_ready', pdfPath: string };
 
 interface WorkflowStore {
   state: WorkflowState;
@@ -76,8 +76,8 @@ export const useWorkflowStore = create<WorkflowStore>((set) => ({
 
     set({ state: { status: 'exporting' } });
     try {
-      await generateAndSavePDF(selectedPosting, selectedRepo);
-      set({ state: { status: 'pdf_ready' } });
+      const pdfPath = await generateAndSavePDF(selectedPosting, selectedRepo);
+      set({ state: { status: 'pdf_ready', pdfPath } });
     } catch (error) {
       set({ state: { status: 'resume_ready' } });
       throw error;

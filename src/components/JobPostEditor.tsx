@@ -33,6 +33,35 @@ export function JobPostEditor({ onClose }: JobPostEditorProps) {
   const { resume, selectedRepo } = useResumeStore();
   const { state, startAnalysis, startGeneration, startExport } = useWorkflowStore();
 
+  // Check if PDF exists when component mounts or when selectedPosting changes
+  useEffect(() => {
+    const checkPDFExists = async () => {
+      if (!selectedPosting || !selectedRepo) return;
+
+      try {
+        const { owner, repo } = parseRepoString(selectedRepo);
+        const fileSlug = `${selectedPosting.company}-${selectedPosting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const path = `job-postings/${fileSlug}.pdf`;
+        console.log('[DEBUG] Checking for PDF at path:', path);
+        const exists = await checkFileExists(owner, repo, path);
+        console.log('[DEBUG] PDF exists?', exists);
+        if (exists) {
+          console.log('[DEBUG] Found existing PDF at:', path);
+          useWorkflowStore.setState({ state: { status: 'pdf_ready', pdfPath: path } });
+        }
+      } catch (error) {
+        console.error('Error checking PDF existence:', error);
+      }
+    };
+
+    checkPDFExists();
+  }, [selectedPosting, selectedRepo]);
+
+  // Debug log state changes
+  useEffect(() => {
+    console.log('[DEBUG] Current workflow state:', state);
+  }, [state]);
+
   // Map workflow state to stepper index
   const activeStep = (() => {
     switch (state.status) {
@@ -86,6 +115,9 @@ export function JobPostEditor({ onClose }: JobPostEditorProps) {
       case 'ready_for_review':
         if (selectedPosting?.generatedResume) {
           useWorkflowStore.setState({ state: { status: 'resume_ready' } });
+        } else {
+          // If we don't have a generated resume yet, start generating one
+          handleGenerateResume();
         }
         break;
     }
@@ -130,16 +162,26 @@ export function JobPostEditor({ onClose }: JobPostEditorProps) {
             <JobRequirements analysis={selectedPosting.analysis} />
           </Box>
         )}
-        {activeStep === 2 && selectedPosting?.generatedResume && (
+        {activeStep === 2 && (
           <Box>
-            <ResumePreview 
-              resume={resume} 
-              generatedResume={selectedPosting.generatedResume}
-            />
-            {state.status === 'pdf_ready' && (
-              <Typography sx={{ mt: 2, color: 'success.main' }}>
-                PDF exported successfully!
-              </Typography>
+            {state.status === 'generating' ? (
+              <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+                <CircularProgress />
+                <Typography sx={{ ml: 2 }}>Generating resume...</Typography>
+              </Box>
+            ) : selectedPosting?.generatedResume ? (
+              <>
+                <ResumePreview 
+                  resume={resume} 
+                  generatedResume={selectedPosting.generatedResume}
+                />
+              </>
+            ) : (
+              <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+                <Typography color="text.secondary">
+                  Click "Generate Preview" to create a customized resume
+                </Typography>
+              </Box>
             )}
           </Box>
         )}
@@ -168,13 +210,26 @@ export function JobPostEditor({ onClose }: JobPostEditorProps) {
               {state.status === 'generating' ? <CircularProgress size={24} /> : 'Generate Preview'}
             </Button>
           )}
-          {activeStep === 2 && state.status !== 'pdf_ready' && (
-            <Button 
-              onClick={handleExport}
-              disabled={state.status === 'exporting'}
-            >
-              {state.status === 'exporting' ? <CircularProgress size={24} /> : 'Export PDF'}
-            </Button>
+          {activeStep === 2 && (
+            <>
+              <Button 
+                onClick={handleExport}
+                disabled={state.status === 'exporting'}
+                variant="outlined"
+              >
+                {state.status === 'exporting' ? <CircularProgress size={24} /> : 'Export PDF'}
+              </Button>
+              {state.status === 'pdf_ready' && 'pdfPath' in state && (
+                <Button 
+                  href={`https://github.com/${selectedRepo}/raw/main/${state.pdfPath}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ ml: 2 }}
+                >
+                  View PDF
+                </Button>
+              )}
+            </>
           )}
         </Box>
         <Box>
