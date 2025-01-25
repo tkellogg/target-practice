@@ -53,12 +53,10 @@ export function ResumePreview({ resume, generatedResume }: Props) {
         return (
           <Box key={i} mt={1}>
             <Typography variant="subtitle1">{exp.company}</Typography>
+            <Typography variant="body2" color="text.secondary">{exp.dates}</Typography>
             {exp.positions.map((pos, j) => (
               <Box key={j}>
                 <Typography variant="subtitle2">{pos.title}</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {pos.startDate} - {pos.endDate}
-                </Typography>
               </Box>
             ))}
             <Typography>{exp.description}</Typography>

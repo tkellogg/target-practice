@@ -166,9 +166,12 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
       setFont(doc, 'HEADING', FONT_SIZES.COMPANY);
       y = addWrappedText(exp.company, y, FONT_SIZES.COMPANY);
       
+      setFont(doc, 'BODY', FONT_SIZES.BODY);
+      y = addWrappedText(exp.dates, y);
+      
       exp.positions.forEach(pos => {
         setFont(doc, 'BODY', FONT_SIZES.BODY);
-        y = addWrappedText(`${pos.title} (${pos.startDate} - ${pos.endDate})`, y);
+        y = addWrappedText(pos.title, y);
       });
 
       // Description
