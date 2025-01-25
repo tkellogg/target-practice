@@ -143,6 +143,8 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
   setFont(doc, 'HEADING', FONT_SIZES.TITLE);
   y = addWrappedText(resume.personalInfo.name, y, FONT_SIZES.TITLE)
   setFont(doc, 'BODY', FONT_SIZES.BODY);
+  y = addWrappedText(resume.personalInfo.email, y, FONT_SIZES.BODY)
+  y = addWrappedText(resume.personalInfo.phone, y, FONT_SIZES.BODY)
   y = addWrappedText(resume.personalInfo.address, y, FONT_SIZES.BODY) + lineHeight
 
   // Add experience section
@@ -167,7 +169,7 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
       y = addWrappedText(exp.company, y, FONT_SIZES.COMPANY);
       
       setFont(doc, 'BODY', FONT_SIZES.BODY);
-      y = addWrappedText(exp.dates, y);
+      y = addWrappedText(`${exp.dates} • ${exp.city}`, y);
       
       exp.positions.forEach(pos => {
         setFont(doc, 'BODY', FONT_SIZES.BODY);
@@ -237,7 +239,7 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
         }
 
         y = checkNewPage(y)
-        y = addWrappedText(project.description, y) + lineHeight/2
+        y = addWrappedText(project.description, y) + lineHeight
         y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, FONT_SIZES.SMALL) + lineHeight
       }
     }
