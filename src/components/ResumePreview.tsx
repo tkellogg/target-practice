@@ -28,13 +28,6 @@ interface Props {
 export function ResumePreview({ resume, generatedResume }: Props) {
   if (!resume) return null;
 
-  // Get the experience map from the generated resume
-  const experienceMap = generatedResume.experienceMap;
-  if (!experienceMap) {
-    console.error('Experience map not found in generatedResume');
-    return null;
-  }
-
   return (
     <Box>
       {/* Personal Info */}
@@ -54,16 +47,8 @@ export function ResumePreview({ resume, generatedResume }: Props) {
       {/* Experience */}
       <Typography variant="h6" mt={2}>Experience</Typography>
       {resume.experience.map((exp, i) => {
-        const expId = `exp_${i}`;
-        const selectedAccomplishments = generatedResume?.selectedExperienceAccomplishments[expId] || [];
-        const selectedSkills = generatedResume?.selectedExperienceSkills[expId] || [];
-        const expMap = experienceMap[i];
-
-        // Skip if we don't have the experience map for this experience
-        if (!expMap) {
-          console.warn(`No experience map found for experience ${i}`);
-          return null;
-        }
+        const selectedAccomplishments = generatedResume?.selectedExperienceAccomplishments[i] || [];
+        const selectedSkills = generatedResume?.selectedExperienceSkills[i] || [];
 
         return (
           <Box key={i} mt={1}>
@@ -79,52 +64,32 @@ export function ResumePreview({ resume, generatedResume }: Props) {
             <Typography>{exp.description}</Typography>
 
             {/* Only show selected accomplishments */}
-            {selectedAccomplishments.length > 0 && expMap.accomplishments && (
+            {selectedAccomplishments.length > 0 && (
               <>
                 <Typography variant="subtitle2" mt={1}>Key Accomplishments:</Typography>
                 <ul>
-                  {exp.accomplishments.map((acc, j) => {
-                    // Skip if we don't have the accomplishment map
-                    if (!expMap.accomplishments[j]) {
-                      console.warn(`No accomplishment map found for accomplishment ${j} in experience ${i}`);
-                      return null;
-                    }
-                    // Look up the random ID that was generated for this accomplishment
-                    const accId = expMap.accomplishments[j].id;
-                    if (selectedAccomplishments.includes(accId)) {
-                      return <li key={j}><Typography>{acc}</Typography></li>;
-                    }
-                    return null;
-                  })}
+                  {selectedAccomplishments.map((accIndex) => (
+                    <li key={accIndex}>
+                      <Typography>{exp.accomplishments[accIndex]}</Typography>
+                    </li>
+                  ))}
                 </ul>
               </>
             )}
 
             {/* Only show selected skills */}
-            {selectedSkills.length > 0 && expMap.skills && (
+            {selectedSkills.length > 0 && (
               <>
                 <Typography variant="subtitle2" mt={1}>Skills Used:</Typography>
                 <Box display="flex" flexWrap="wrap" gap={1}>
-                  {exp.skills.map((skill, j) => {
-                    // Skip if we don't have the skill map
-                    if (!expMap.skills[j]) {
-                      console.warn(`No skill map found for skill ${j} in experience ${i}`);
-                      return null;
-                    }
-                    // Look up the random ID that was generated for this skill
-                    const skillId = expMap.skills[j].id;
-                    if (selectedSkills.includes(skillId)) {
-                      return (
-                        <Chip
-                          key={j}
-                          label={skill}
-                          size="small"
-                          variant="outlined"
-                        />
-                      );
-                    }
-                    return null;
-                  })}
+                  {selectedSkills.map((skillIndex) => (
+                    <Chip
+                      key={skillIndex}
+                      label={exp.skills[skillIndex]}
+                      size="small"
+                      variant="outlined"
+                    />
+                  ))}
                 </Box>
               </>
             )}
@@ -137,9 +102,8 @@ export function ResumePreview({ resume, generatedResume }: Props) {
         <>
           <Typography variant="h6" mt={2}>Projects</Typography>
           {resume.projects.map((project, i) => {
-            const projectId = `project_${i}`;
-            const selectedAccomplishments = generatedResume?.selectedProjectAccomplishments[projectId] || [];
-            const selectedSkills = generatedResume?.selectedProjectSkills[projectId] || [];
+            const selectedAccomplishments = generatedResume?.selectedProjectAccomplishments[i] || [];
+            const selectedSkills = generatedResume?.selectedProjectSkills[i] || [];
 
             return (
               <Box key={i} mt={1}>
@@ -154,13 +118,11 @@ export function ResumePreview({ resume, generatedResume }: Props) {
                   <>
                     <Typography variant="subtitle2" mt={1}>Key Accomplishments:</Typography>
                     <ul>
-                      {project.accomplishments.map((acc, j) => {
-                        const accId = `acc_${j}`;
-                        if (selectedAccomplishments.includes(accId)) {
-                          return <li key={j}><Typography>{acc}</Typography></li>;
-                        }
-                        return null;
-                      })}
+                      {selectedAccomplishments.map((accIndex) => (
+                        <li key={accIndex}>
+                          <Typography>{project.accomplishments[accIndex]}</Typography>
+                        </li>
+                      ))}
                     </ul>
                   </>
                 )}
@@ -170,20 +132,14 @@ export function ResumePreview({ resume, generatedResume }: Props) {
                   <>
                     <Typography variant="subtitle2" mt={1}>Skills Used:</Typography>
                     <Box display="flex" flexWrap="wrap" gap={1}>
-                      {project.skills.map((skill, j) => {
-                        const skillId = `skill_${j}`;
-                        if (selectedSkills.includes(skillId)) {
-                          return (
-                            <Chip
-                              key={j}
-                              label={skill}
-                              size="small"
-                              variant="outlined"
-                            />
-                          );
-                        }
-                        return null;
-                      })}
+                      {selectedSkills.map((skillIndex) => (
+                        <Chip
+                          key={skillIndex}
+                          label={project.skills[skillIndex]}
+                          size="small"
+                          variant="outlined"
+                        />
+                      ))}
                     </Box>
                   </>
                 )}

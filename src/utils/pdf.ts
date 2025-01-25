@@ -16,14 +16,64 @@
 
 import { jsPDF } from 'jspdf'
 import { JobPosting } from '../types/JobPosting'
-import { Resume, Experience } from '../types/Resume'
+import { Resume } from '../types/Resume'
 import { Octokit } from '@octokit/rest'
-import { getFileContent, parseRepoString } from './github'
-import { parseXMLToResume } from './xml'
+import { parseRepoString } from './github'
+import { useResumeStore } from '../stores/useResumeStore'
 
 const octokit = new Octokit({
   auth: import.meta.env.VITE_GH_ACCESS_KEY
 })
+
+// Load custom fonts
+async function loadFonts(doc: jsPDF) {
+  try {
+    const robotoRegular = await fetch('/fonts/Roboto-Regular.ttf').then(r => r.arrayBuffer())
+    const robotoBold = await fetch('/fonts/Roboto-Bold.ttf').then(r => r.arrayBuffer())
+    // const inter = await fetch('/fonts/Inter-VariableFont_opsz,wght.ttf').then(r => r.arrayBuffer())
+    // const merriweather = await fetch('/fonts/Merriweather-Regular.ttf').then(r => r.arrayBuffer())
+    
+    doc.addFileToVFS('Roboto-Regular.ttf', arrayBufferToBase64(robotoRegular))
+    doc.addFileToVFS('Roboto-Bold.ttf', arrayBufferToBase64(robotoBold))
+    // doc.addFileToVFS('Inter.ttf', arrayBufferToBase64(inter))
+    // doc.addFileToVFS('Merriweather-Regular.ttf', arrayBufferToBase64(merriweather))
+    
+    doc.addFont('Roboto-Regular.ttf', 'roboto', 'normal')
+    doc.addFont('Roboto-Bold.ttf', 'roboto', 'bold')
+    // doc.addFont('Inter.ttf', 'inter', 'normal')
+    // doc.addFont('Meriweather-Regular.ttf', 'meriweather', 'normal')
+    
+    console.log('[DEBUG] Successfully loaded custom fonts')
+  } catch (error) {
+    console.error('[DEBUG] Failed to load custom fonts:', error)
+    console.log('[DEBUG] Falling back to helvetica')
+  }
+}
+
+const FONTS = {
+  HEADING: {
+    family: 'roboto',
+    style: 'bold',
+  },
+  BODY: {
+    family: 'roboto',
+    style: 'normal',
+  }
+} as const;
+
+const FONT_SIZES = {
+  TITLE: 20,
+  SECTION_HEADER: 16,
+  COMPANY: 14,
+  BODY: 12,
+  SMALL: 10,
+} as const;
+
+// Helper to set font style
+const setFont = (doc: jsPDF, type: keyof typeof FONTS, size: number) => {
+  doc.setFont(FONTS[type].family, FONTS[type].style);
+  doc.setFontSize(size);
+};
 
 // Convert ArrayBuffer to base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -35,22 +85,19 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary)
 }
 
-async function getFullResume(selectedRepo: string): Promise<Resume> {
-  const { owner, repo } = parseRepoString(selectedRepo)
-  const xmlContent = await getFileContent(owner, repo, 'full-resume.xml')
-  
-  const resume = parseXMLToResume(xmlContent)
-  if (!resume) {
-    throw new Error('Failed to parse resume XML')
-  }
-
-  return resume
-}
-
 export async function generateAndSavePDF(posting: JobPosting, selectedRepo: string) {
   console.log('[DEBUG] Starting PDF generation for:', posting.company, posting.title);
-  const resume = await getFullResume(selectedRepo)
+  const resume = useResumeStore.getState().resume;
+  if (!resume) {
+    throw new Error('Resume not loaded');
+  }
+  console.log("Num experience Items:", resume.experience.length);
+  
   const doc = new jsPDF()
+  
+  // Load custom fonts
+  await loadFonts(doc)
+  
   const margin = 20
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
@@ -67,7 +114,7 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
   }
 
   // Helper to add wrapped text
-  const addWrappedText = (text: string, y: number, fontSize: number = 12) => {
+  const addWrappedText = (text: string, y: number, fontSize: number = FONT_SIZES.BODY) => {
     doc.setFontSize(fontSize)
     const lines = doc.splitTextToSize(text, pageWidth - 2 * margin)
     const totalHeight = lines.length * lineHeight
@@ -84,95 +131,72 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
     // Check if we need a new page for the header plus some content
     y = checkNewPage(y, lineHeight * 3)
     
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
+    setFont(doc, 'HEADING', FONT_SIZES.SECTION_HEADER);
     doc.text(text, margin, y)
-    doc.setFont('helvetica', 'normal')
+    setFont(doc, 'BODY', FONT_SIZES.BODY);
     return y + lineHeight * 1.5
   }
 
   let y = margin
 
   // Add personal information
-  doc.setFontSize(20)
-  doc.setFont('helvetica', 'bold')
-  y = addWrappedText(resume.personalInfo.name, y, 20)
-  doc.setFont('helvetica', 'normal')
-  y = addWrappedText(resume.personalInfo.address, y, 12) + lineHeight
+  setFont(doc, 'HEADING', FONT_SIZES.TITLE);
+  y = addWrappedText(resume.personalInfo.name, y, FONT_SIZES.TITLE)
+  setFont(doc, 'BODY', FONT_SIZES.BODY);
+  y = addWrappedText(resume.personalInfo.address, y, FONT_SIZES.BODY) + lineHeight
 
   // Add experience section
   y = addSectionHeader('Experience', y);
   
   if (posting.generatedResume) {
-    const { selectedExperienceAccomplishments, selectedExperienceSkills, experienceMap, overview, closing } = posting.generatedResume;
+    const { selectedExperienceAccomplishments, selectedExperienceSkills, overview, closing } = posting.generatedResume;
     
     // Overview section
     y = addSectionHeader('Overview', y);
     y = addWrappedText(overview, y) + lineHeight;
 
     resume.experience.forEach((exp, i) => {
-      const expId = `exp_${i}`;
-      const selectedAccomplishments = selectedExperienceAccomplishments[expId] || [];
-      const selectedSkills = selectedExperienceSkills[expId] || [];
-      const expMap = experienceMap[i];
-
-      if (!expMap) {
-        console.warn(`No experience map found for experience ${i}`);
-        return;
-      }
+      const selectedAccomplishments = selectedExperienceAccomplishments[i] || [];
+      const selectedSkills = selectedExperienceSkills[i] || [];
 
       // Check if we need a new page for this experience block
       y = checkNewPage(y, lineHeight * 6);
 
       // Company and position
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      y = addWrappedText(exp.company, y, 14);
+      setFont(doc, 'HEADING', FONT_SIZES.COMPANY);
+      y = addWrappedText(exp.company, y, FONT_SIZES.COMPANY);
       
       exp.positions.forEach(pos => {
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'normal');
+        setFont(doc, 'BODY', FONT_SIZES.BODY);
         y = addWrappedText(`${pos.title} (${pos.startDate} - ${pos.endDate})`, y);
       });
 
       // Description
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
+      setFont(doc, 'BODY', FONT_SIZES.BODY);
       y = addWrappedText(exp.description, y);
 
       // Selected accomplishments
       if (selectedAccomplishments.length > 0) {
         y = checkNewPage(y, lineHeight * 2);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
+        setFont(doc, 'HEADING', FONT_SIZES.BODY);
         y = addWrappedText('Key Accomplishments:', y);
-        doc.setFont('helvetica', 'normal');
+        setFont(doc, 'BODY', FONT_SIZES.BODY);
 
-        exp.accomplishments.forEach((acc, j) => {
-          if (!expMap.accomplishments[j]) return;
-          const accId = expMap.accomplishments[j].id;
-          if (selectedAccomplishments.includes(accId)) {
-            y = checkNewPage(y, lineHeight * 2);
-            y = addWrappedText(`• ${acc}`, y);
-          }
+        selectedAccomplishments.forEach((accIndex) => {
+          y = checkNewPage(y, lineHeight * 2);
+          y = addWrappedText(`• ${exp.accomplishments[accIndex]}`, y);
         });
       }
 
       // Selected skills
       if (selectedSkills.length > 0) {
         y = checkNewPage(y, lineHeight * 2);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
+        setFont(doc, 'HEADING', FONT_SIZES.BODY);
         y = addWrappedText('Skills Used:', y);
-        doc.setFont('helvetica', 'normal');
+        setFont(doc, 'BODY', FONT_SIZES.BODY);
 
-        const skillsText = exp.skills
-          .map((skill, j) => {
-            if (!expMap.skills[j]) return null;
-            const skillId = expMap.skills[j].id;
-            return selectedSkills.includes(skillId) ? skill : null;
-          })
-          .filter(Boolean)
+        const skillsText = selectedSkills
+          .map(skillIndex => exp.skills[skillIndex])
           .join(', ');
 
         y = addWrappedText(skillsText, y);
@@ -181,52 +205,53 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
       y += lineHeight * 2;
     });
 
-    // Closing section
-    y = addSectionHeader('Closing', y);
-    y = addWrappedText(closing, y);
-  }
+    // Projects section
+    if (resume.projects.length > 0) {
+      y = addSectionHeader('Open Source Projects', y)
+      // Filter project items based on selected accomplishments/skills
+      const filteredProjects = resume.projects.map((proj, i) => {
+        const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[i] || [];
+        const selectedSkills = posting.generatedResume?.selectedProjectSkills[i] || [];
 
-  // Projects section
-  if (resume.projects.length > 0) {
-    y = addSectionHeader('Open Source Projects', y)
-    // Filter project items based on selected accomplishments/skills
-    const filteredProjects = resume.projects.map((proj, i) => {
-      const projId = `proj_${i}`;
-      const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[projId] || [];
-      const selectedSkills = posting.generatedResume?.selectedProjectSkills[projId] || [];
+        return {
+          ...proj,
+          accomplishments: selectedAccomplishments.map(idx => proj.accomplishments[idx]),
+          skills: selectedSkills.map(idx => proj.skills[idx])
+        };
+      });
+      for (const project of filteredProjects) {
+        y = checkNewPage(y, lineHeight * 4) // Space for project name and details
+        
+        setFont(doc, 'HEADING', FONT_SIZES.COMPANY);
+        y = addWrappedText(project.name, y, FONT_SIZES.COMPANY);
+        setFont(doc, 'BODY', FONT_SIZES.BODY);
 
-      return {
-        ...proj,
-        accomplishments: proj.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
-        skills: proj.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
-      };
-    });
-    for (const project of filteredProjects) {
-      y = checkNewPage(y, lineHeight * 4) // Space for project name and details
-      
-      doc.setFont('helvetica', 'bold')
-      y = addWrappedText(project.name, y, 14)
-      doc.setFont('helvetica', 'normal')
+        if (project.url) {
+          y = checkNewPage(y)
+          doc.setTextColor(0, 0, 255)
+          y = addWrappedText(project.url, y, FONT_SIZES.SMALL)
+          doc.setTextColor(0)
+        }
 
-      if (project.url) {
         y = checkNewPage(y)
-        doc.setTextColor(0, 0, 255)
-        y = addWrappedText(project.url, y, 10)
-        doc.setTextColor(0)
+        y = addWrappedText(project.description, y) + lineHeight/2
+        y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, FONT_SIZES.SMALL) + lineHeight
       }
-
-      y = checkNewPage(y)
-      y = addWrappedText(project.description, y) + lineHeight/2
-      y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, 10) + lineHeight
     }
-  }
 
-  // Patents section
-  if (resume.patents.length > 0) {
-    y = addSectionHeader('Patents', y)
-    for (const patent of resume.patents) {
-      y = checkNewPage(y)
-      y = addWrappedText(`${patent.title} (Patent #${patent.number})`, y) + lineHeight
+    // Patents section
+    if (resume.patents.length > 0) {
+      y = addSectionHeader('Patents', y)
+      for (const patent of resume.patents) {
+        y = checkNewPage(y)
+        y = addWrappedText(`${patent.title} (Patent #${patent.number})`, y) + lineHeight
+      }
+    }
+
+    // Closing section - moved to end
+    if (posting.generatedResume?.closing) {
+      y = addSectionHeader('Closing', y);
+      y = addWrappedText(posting.generatedResume.closing, y);
     }
   }
 

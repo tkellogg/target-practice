@@ -37,6 +37,8 @@ interface JobPostingStore {
 }
 
 function postingToXML(posting: JobPosting): string {
+  console.log('[DEBUG] Starting to convert posting to XML:', posting.id);
+  console.log('[DEBUG] Generated resume data:', posting.generatedResume);
   const doc = document.implementation.createDocument(null, 'jobPosting', null);
   
   const addElement = (parent: Element, name: string, content: string) => {
@@ -45,49 +47,15 @@ function postingToXML(posting: JobPosting): string {
     parent.appendChild(elem);
   };
 
-  const addMapElement = (parent: Element, name: string, map: Record<string, string[]>) => {
+  const addIndexMap = (parent: Element, name: string, map: Record<number, number[]>) => {
     const elem = doc.createElement(name);
-    Object.entries(map).forEach(([key, values]) => {
+    Object.entries(map).forEach(([expIndex, indices]) => {
       const itemElem = doc.createElement('item');
-      addElement(itemElem, 'id', key);
+      addElement(itemElem, 'expIndex', expIndex);
       const valuesElem = doc.createElement('values');
-      values.forEach(value => addElement(valuesElem, 'value', value));
+      indices.forEach(idx => addElement(valuesElem, 'value', idx.toString()));
       itemElem.appendChild(valuesElem);
       elem.appendChild(itemElem);
-    });
-    parent.appendChild(elem);
-  };
-
-  const addExperienceMap = (parent: Element, experienceMap: Record<number, { 
-    id: string,
-    accomplishments: { id: string; text: string }[],
-    skills: { id: string; text: string }[]
-  }>) => {
-    const elem = doc.createElement('experienceMap');
-    Object.entries(experienceMap).forEach(([index, exp]) => {
-      const expElem = doc.createElement('experience');
-      addElement(expElem, 'index', index);
-      addElement(expElem, 'id', exp.id);
-
-      const accomplishmentsElem = doc.createElement('accomplishments');
-      exp.accomplishments.forEach(acc => {
-        const accElem = doc.createElement('accomplishment');
-        addElement(accElem, 'id', acc.id);
-        addElement(accElem, 'text', acc.text);
-        accomplishmentsElem.appendChild(accElem);
-      });
-      expElem.appendChild(accomplishmentsElem);
-
-      const skillsElem = doc.createElement('skills');
-      exp.skills.forEach(skill => {
-        const skillElem = doc.createElement('skill');
-        addElement(skillElem, 'id', skill.id);
-        addElement(skillElem, 'text', skill.text);
-        skillsElem.appendChild(skillElem);
-      });
-      expElem.appendChild(skillsElem);
-
-      elem.appendChild(expElem);
     });
     parent.appendChild(elem);
   };
@@ -103,15 +71,13 @@ function postingToXML(posting: JobPosting): string {
     addElement(resume, 'closing', posting.generatedResume.closing);
     
     // Add selected accomplishments and skills
-    addMapElement(resume, 'selectedExperienceAccomplishments', posting.generatedResume.selectedExperienceAccomplishments);
-    addMapElement(resume, 'selectedExperienceSkills', posting.generatedResume.selectedExperienceSkills);
-    addMapElement(resume, 'selectedProjectAccomplishments', posting.generatedResume.selectedProjectAccomplishments);
-    addMapElement(resume, 'selectedProjectSkills', posting.generatedResume.selectedProjectSkills);
-    
-    // Add experience map
-    addExperienceMap(resume, posting.generatedResume.experienceMap);
+    addIndexMap(resume, 'selectedExperienceAccomplishments', posting.generatedResume.selectedExperienceAccomplishments);
+    addIndexMap(resume, 'selectedExperienceSkills', posting.generatedResume.selectedExperienceSkills);
+    addIndexMap(resume, 'selectedProjectAccomplishments', posting.generatedResume.selectedProjectAccomplishments);
+    addIndexMap(resume, 'selectedProjectSkills', posting.generatedResume.selectedProjectSkills);
     
     doc.documentElement.appendChild(resume);
+    console.log('[DEBUG] Final XML:', doc.documentElement.outerHTML);
   }
 
   if (posting.analysis) {
@@ -143,6 +109,8 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
   const doc = parser.parseFromString(xml, 'application/xml');
   
   try {
+    console.log('[DEBUG] Starting to parse XML for posting:', id);
+    console.log('[DEBUG] Full XML content:', xml);
     const posting: JobPosting = {
       id,
       company: doc.querySelector('company')?.textContent ?? '',
@@ -153,42 +121,15 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
 
     const generatedResumeElem = doc.querySelector('generatedResume');
     if (generatedResumeElem) {
-      const parseMap = (parent: Element, selector: string): Record<string, string[]> => {
-        const result: Record<string, string[]> = {};
+      console.log('[DEBUG] Found generatedResume element:', generatedResumeElem.outerHTML);
+
+      const parseIndexMap = (parent: Element, selector: string): Record<number, number[]> => {
+        const result: Record<number, number[]> = {};
         parent.querySelectorAll(selector).forEach(item => {
-          const id = item.querySelector('id')?.textContent;
+          const expIndex = parseInt(item.querySelector('expIndex')?.textContent ?? '0');
           const values = Array.from(item.querySelectorAll('values value'))
-            .map(el => el.textContent ?? '');
-          if (id) {
-            result[id] = values;
-          }
-        });
-        return result;
-      };
-
-      const parseExperienceMap = (parent: Element): Record<number, { 
-        id: string,
-        accomplishments: { id: string; text: string }[],
-        skills: { id: string; text: string }[]
-      }> => {
-        const result: Record<number, any> = {};
-        parent.querySelectorAll('experienceMap experience').forEach(exp => {
-          const index = parseInt(exp.querySelector('index')?.textContent ?? '0');
-          const id = exp.querySelector('id')?.textContent ?? '';
-
-          const accomplishments = Array.from(exp.querySelectorAll('accomplishments accomplishment'))
-            .map(acc => ({
-              id: acc.querySelector('id')?.textContent ?? '',
-              text: acc.querySelector('text')?.textContent ?? ''
-            }));
-
-          const skills = Array.from(exp.querySelectorAll('skills skill'))
-            .map(skill => ({
-              id: skill.querySelector('id')?.textContent ?? '',
-              text: skill.querySelector('text')?.textContent ?? ''
-            }));
-
-          result[index] = { id, accomplishments, skills };
+            .map(el => parseInt(el.textContent ?? '0'));
+          result[expIndex] = values;
         });
         return result;
       };
@@ -196,12 +137,12 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
       posting.generatedResume = {
         overview: generatedResumeElem.querySelector('overview')?.textContent ?? '',
         closing: generatedResumeElem.querySelector('closing')?.textContent ?? '',
-        selectedExperienceAccomplishments: parseMap(generatedResumeElem, 'selectedExperienceAccomplishments item'),
-        selectedExperienceSkills: parseMap(generatedResumeElem, 'selectedExperienceSkills item'),
-        selectedProjectAccomplishments: parseMap(generatedResumeElem, 'selectedProjectAccomplishments item'),
-        selectedProjectSkills: parseMap(generatedResumeElem, 'selectedProjectSkills item'),
-        experienceMap: parseExperienceMap(generatedResumeElem)
+        selectedExperienceAccomplishments: parseIndexMap(generatedResumeElem, 'selectedExperienceAccomplishments item'),
+        selectedExperienceSkills: parseIndexMap(generatedResumeElem, 'selectedExperienceSkills item'),
+        selectedProjectAccomplishments: parseIndexMap(generatedResumeElem, 'selectedProjectAccomplishments item'),
+        selectedProjectSkills: parseIndexMap(generatedResumeElem, 'selectedProjectSkills item')
       };
+      console.log('[DEBUG] Generated resume object:', posting.generatedResume);
     }
 
     const analysis = doc.querySelector('analysis');
@@ -329,33 +270,8 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null });
 
-      // First generate the experience map
-      const prompt = selectExperiencesPrompt(posting, resume, []);
-      const experienceMap = resume.experience.reduce((map, exp, i) => {
-        const generateId = () => Math.random().toString(36).substring(2, 10);
-        map[i] = {
-          id: `exp_${i}`,
-          skills: exp.skills.map(skill => ({ id: `skill_${generateId()}`, text: skill })),
-          accomplishments: exp.accomplishments.map(acc => ({ id: `acc_${generateId()}`, text: acc }))
-        };
-        return map;
-      }, {} as Record<number, { 
-        id: string,
-        accomplishments: { id: string; text: string }[],
-        skills: { id: string; text: string }[]
-      }>);
-
-      // Debug log the mapping
-      console.log('[DEBUG] Experience Map:');
-      Object.entries(experienceMap).forEach(([i, exp]) => {
-        console.log(`\nExperience ${i} (${exp.id}):`);
-        console.log('Skills:');
-        exp.skills.forEach(s => console.log(`  ${s.id} -> ${s.text}`));
-        console.log('Accomplishments:');
-        exp.accomplishments.forEach(a => console.log(`  ${a.id} -> ${a.text}`));
-      });
-
       // Get selected accomplishments and skills from the API
+      const prompt = selectExperiencesPrompt(posting, resume, []);
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -419,13 +335,29 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         selectedExperienceAccomplishments: selectedExperienceAccomplishments || {},
         selectedExperienceSkills: selectedExperienceSkills || {},
         selectedProjectAccomplishments: {}, // Not implemented yet
-        selectedProjectSkills: {}, // Not implemented yet
-        experienceMap
+        selectedProjectSkills: {} // Not implemented yet
       };
+
+      console.log('[DEBUG] Generated resume before save:', JSON.stringify(generatedResume));
 
       // Update posting with generated resume
       posting.generatedResume = generatedResume;
+      
+      // Convert to XML and back as a test
+      const testXml = postingToXML(posting);
+      const testParsed = parseXMLToPosting(testXml, posting.id);
+      console.log('[DEBUG] Resume after test XML cycle:', testParsed?.generatedResume);
+
       await get().updatePosting(posting);
+      
+      // Debug log the posting after actual save
+      const { owner, repo } = parseRepoString(get().selectedRepo!);
+      const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const path = `job-postings/${fileSlug}.xml`;
+      const savedXml = await getFileContent(owner, repo, path);
+      const savedPosting = parseXMLToPosting(savedXml, posting.id);
+      console.log('[DEBUG] Resume after actual save:', savedPosting?.generatedResume);
+
       await get().loadPostings();
     } catch (error) {
       console.error('Error generating resume:', error);

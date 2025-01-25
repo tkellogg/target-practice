@@ -121,27 +121,10 @@ Please respond with a JSON object containing:
 }
 
 /**
- * Selects which accomplishments and skills to include in a targeted resume
+ * Selects which experiences to include in the resume
  */
-export function selectExperiencesPrompt(posting: JobPosting, resume: Resume, experienceIds: string[]): string {
-  // Generate random IDs for each skill and accomplishment
-  const generateId = () => Math.random().toString(36).substring(2, 10);
-  
-  // Map of generated IDs to track what was selected
-  const experienceMap = resume.experience.reduce((map, exp, i) => {
-    map[i] = {
-      id: `exp_${i}`,
-      skills: exp.skills.map(skill => ({ id: `skill_${generateId()}`, text: skill })),
-      accomplishments: exp.accomplishments.map(acc => ({ id: `acc_${generateId()}`, text: acc }))
-    };
-    return map;
-  }, {} as Record<number, { 
-    id: string,
-    accomplishments: { id: string; text: string }[],
-    skills: { id: string; text: string }[]
-  }>);
-
-  return `You are a professional resume writer selecting which accomplishments and skills to include in a targeted resume.
+export function selectExperiencesPrompt(posting: JobPosting, resume: Resume, previousSelections: string[]): string {
+  return `You are a professional resume writer. Select the most relevant accomplishments and skills from each experience that demonstrate the candidate's suitability for this role.
 
 Job Description:
 ${posting.rawText}
@@ -152,30 +135,26 @@ Required Skills: ${posting.analysis?.requiredSkills.join(', ')}
 Optional Skills: ${posting.analysis?.optionalSkills.join(', ')}
 Success Criteria: ${posting.analysis?.successCriteria.join(', ')}
 
-Available Experiences:
-${Object.entries(experienceMap).map(([i, exp]) => `
-ID: ${exp.id}
-Company: ${resume.experience[parseInt(i)].company}
-Description: ${resume.experience[parseInt(i)].description}
-Skills:
-${exp.skills.map(s => `${s.id}: ${s.text}`).join('\n')}
+Resume Experiences:
+${resume.experience.map((exp, i) => `
+Experience ${i}:
+Company: ${exp.company}
+Description: ${exp.description}
 Accomplishments:
-${exp.accomplishments.map(a => `${a.id}: ${a.text}`).join('\n')}
+${exp.accomplishments.map((acc, j) => `${j}. ${acc}`).join('\n')}
+Skills:
+${exp.skills.map((skill, j) => `${j}. ${skill}`).join('\n')}
 `).join('\n')}
-
-IMPORTANT: DO NOT select entire experiences. Instead, select specific accomplishments and skills within EACH experience that are most relevant to this job.
 
 Please respond with a JSON object containing:
 {
   "selectedExperienceAccomplishments": {
-    "exp_0": ["acc_xyz123", "acc_abc456"],  // IDs of relevant accomplishments for experience 0
-    "exp_1": ["acc_def789", "acc_ghi012"],  // For experience 1, etc.
-    // Include ALL experiences, even if none selected
+    "0": [0, 2], // For experience 0, include accomplishments 0 and 2
+    "1": [1, 3]  // For experience 1, include accomplishments 1 and 3
   },
   "selectedExperienceSkills": {
-    "exp_0": ["skill_jkl345", "skill_mno678"],  // IDs of relevant skills for experience 0
-    "exp_1": ["skill_pqr901", "skill_stu234"],  // For experience 1, etc.
-    // Include ALL experiences, even if none selected
+    "0": [0, 1], // For experience 0, include skills 0 and 1
+    "1": [2, 3]  // For experience 1, include skills 2 and 3
   }
 }`
 }
