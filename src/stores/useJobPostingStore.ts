@@ -34,6 +34,7 @@ interface JobPostingStore {
   generateResume: (posting: JobPosting, resume: Resume) => Promise<void>;
   updateRequirements: (posting: JobPosting, type: 'required' | 'optional', requirements: string[]) => Promise<void>;
   analyzePosting: (posting: JobPosting) => Promise<void>;
+  optimisticUpdate: (posting: JobPosting) => void;
 }
 
 function postingToXML(posting: JobPosting): string {
@@ -245,6 +246,26 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
       console.error('Error creating job posting:', error);
       set({ error: 'Failed to create job posting', isLoading: false });
     }
+  },
+
+  optimisticUpdate: (posting: JobPosting) => {
+    set(state => ({
+      selectedPosting: posting,
+      postings: state.postings.map(p => p.id === posting.id ? posting : p)
+    }));
+
+    const { selectedRepo } = get();
+    if (!selectedRepo) return;
+
+    const { owner, repo } = parseRepoString(selectedRepo);
+    const xml = postingToXML(posting);
+    const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const path = `job-postings/${fileSlug}.xml`;
+
+    saveFile(owner, repo, path, xml).catch(error => {
+      console.error('Error saving job posting:', error);
+      get().loadPostings();
+    });
   },
 
   updatePosting: async (posting) => {

@@ -15,10 +15,12 @@
  */
 
 import React from 'react'
-import { Box, Typography, Chip } from '@mui/material'
+import { Box, Typography, Chip, IconButton, Menu, MenuItem } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
+import AddIcon from '@mui/icons-material/Add'
 import { Resume } from '../types/Resume'
 import { GeneratedResume } from '../types/JobPosting'
-import { selectExperiencesPrompt } from '../utils/prompts'
+import { useJobPostingStore } from '../stores/useJobPostingStore'
 
 interface Props {
   resume: Resume | null
@@ -27,6 +29,92 @@ interface Props {
 
 export function ResumePreview({ resume, generatedResume }: Props) {
   if (!resume) return null;
+
+  const { selectedPosting, optimisticUpdate } = useJobPostingStore();
+  const [skillsMenuAnchor, setSkillsMenuAnchor] = React.useState<null | { element: HTMLElement, expIndex: number }>(null);
+  const [accomplishmentsMenuAnchor, setAccomplishmentsMenuAnchor] = React.useState<null | { element: HTMLElement, expIndex: number }>(null);
+
+  const handleRemoveSkill = (expIndex: number, skillIndex: number) => {
+    if (!selectedPosting?.generatedResume) return;
+
+    const newSkills = [...(selectedPosting.generatedResume.selectedExperienceSkills[expIndex] || [])];
+    newSkills.splice(newSkills.indexOf(skillIndex), 1);
+
+    const updatedPosting = {
+      ...selectedPosting,
+      generatedResume: {
+        ...selectedPosting.generatedResume,
+        selectedExperienceSkills: {
+          ...selectedPosting.generatedResume.selectedExperienceSkills,
+          [expIndex]: newSkills
+        }
+      }
+    };
+    optimisticUpdate(updatedPosting);
+  };
+
+  const handleRemoveAccomplishment = (expIndex: number, accIndex: number) => {
+    if (!selectedPosting?.generatedResume) return;
+
+    const newAccomplishments = [...(selectedPosting.generatedResume.selectedExperienceAccomplishments[expIndex] || [])];
+    newAccomplishments.splice(newAccomplishments.indexOf(accIndex), 1);
+
+    const updatedPosting = {
+      ...selectedPosting,
+      generatedResume: {
+        ...selectedPosting.generatedResume,
+        selectedExperienceAccomplishments: {
+          ...selectedPosting.generatedResume.selectedExperienceAccomplishments,
+          [expIndex]: newAccomplishments
+        }
+      }
+    };
+    optimisticUpdate(updatedPosting);
+  };
+
+  const handleAddSkill = (expIndex: number, skillIndex: number) => {
+    if (!selectedPosting?.generatedResume) return;
+
+    const newSkills = [...(selectedPosting.generatedResume.selectedExperienceSkills[expIndex] || [])];
+    if (!newSkills.includes(skillIndex)) {
+      newSkills.push(skillIndex);
+    }
+
+    const updatedPosting = {
+      ...selectedPosting,
+      generatedResume: {
+        ...selectedPosting.generatedResume,
+        selectedExperienceSkills: {
+          ...selectedPosting.generatedResume.selectedExperienceSkills,
+          [expIndex]: newSkills
+        }
+      }
+    };
+    optimisticUpdate(updatedPosting);
+    setSkillsMenuAnchor(null);
+  };
+
+  const handleAddAccomplishment = (expIndex: number, accIndex: number) => {
+    if (!selectedPosting?.generatedResume) return;
+
+    const newAccomplishments = [...(selectedPosting.generatedResume.selectedExperienceAccomplishments[expIndex] || [])];
+    if (!newAccomplishments.includes(accIndex)) {
+      newAccomplishments.push(accIndex);
+    }
+
+    const updatedPosting = {
+      ...selectedPosting,
+      generatedResume: {
+        ...selectedPosting.generatedResume,
+        selectedExperienceAccomplishments: {
+          ...selectedPosting.generatedResume.selectedExperienceAccomplishments,
+          [expIndex]: newAccomplishments
+        }
+      }
+    };
+    optimisticUpdate(updatedPosting);
+    setAccomplishmentsMenuAnchor(null);
+  };
 
   return (
     <Box>
@@ -49,6 +137,8 @@ export function ResumePreview({ resume, generatedResume }: Props) {
       {resume.experience.map((exp, i) => {
         const selectedAccomplishments = generatedResume?.selectedExperienceAccomplishments[i] || [];
         const selectedSkills = generatedResume?.selectedExperienceSkills[i] || [];
+        const availableSkills = exp.skills.map((_, idx) => idx).filter(idx => !selectedSkills.includes(idx));
+        const availableAccomplishments = exp.accomplishments.map((_, idx) => idx).filter(idx => !selectedAccomplishments.includes(idx));
 
         return (
           <Box key={i} mt={1}>
@@ -62,38 +152,90 @@ export function ResumePreview({ resume, generatedResume }: Props) {
             <Typography>{exp.description}</Typography>
 
             {/* Only show selected accomplishments */}
-            {selectedAccomplishments.length > 0 && (
-              <>
-                <Typography variant="subtitle2" mt={1}>Key Accomplishments:</Typography>
-                <ul>
-                  {selectedAccomplishments.map((accIndex) => (
-                    <li key={accIndex}>
-                      <Typography>{exp.accomplishments[accIndex]}</Typography>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+            <>
+              <Typography variant="subtitle2" mt={1}>Key Accomplishments:</Typography>
+              <ul style={{ listStyleType: 'none', padding: 0 }}>
+                {selectedAccomplishments.map((accIndex) => (
+                  <li key={accIndex} style={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography style={{ flex: 1 }}>• {exp.accomplishments[accIndex]}</Typography>
+                    <IconButton size="small" onClick={() => handleRemoveAccomplishment(i, accIndex)}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </li>
+                ))}
+                {availableAccomplishments.length > 0 && (
+                  <li>
+                    <IconButton 
+                      size="small" 
+                      onClick={(event) => setAccomplishmentsMenuAnchor({ element: event.currentTarget, expIndex: i })}
+                    >
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </li>
+                )}
+              </ul>
+            </>
 
             {/* Only show selected skills */}
-            {selectedSkills.length > 0 && (
-              <>
-                <Typography variant="subtitle2" mt={1}>Skills Used:</Typography>
-                <Box display="flex" flexWrap="wrap" gap={1}>
-                  {selectedSkills.map((skillIndex) => (
-                    <Chip
-                      key={skillIndex}
-                      label={exp.skills[skillIndex]}
-                      size="small"
-                      variant="outlined"
-                    />
-                  ))}
-                </Box>
-              </>
-            )}
+            <>
+              <Typography variant="subtitle2" mt={1}>Skills Used:</Typography>
+              <Box display="flex" flexWrap="wrap" gap={1} alignItems="center">
+                {selectedSkills.map((skillIndex) => (
+                  <Chip
+                    key={skillIndex}
+                    label={exp.skills[skillIndex]}
+                    size="small"
+                    variant="outlined"
+                    onDelete={() => handleRemoveSkill(i, skillIndex)}
+                  />
+                ))}
+                {availableSkills.length > 0 && (
+                  <Chip
+                    icon={<AddIcon />}
+                    size="small"
+                    variant="outlined"
+                    onClick={(event) => setSkillsMenuAnchor({ element: event.currentTarget, expIndex: i })}
+                  />
+                )}
+              </Box>
+            </>
           </Box>
         );
       })}
+
+      {/* Skills Menu */}
+      <Menu
+        anchorEl={skillsMenuAnchor?.element}
+        open={Boolean(skillsMenuAnchor)}
+        onClose={() => setSkillsMenuAnchor(null)}
+      >
+        {skillsMenuAnchor && resume.experience[skillsMenuAnchor.expIndex].skills.map((skill, idx) => {
+          const selectedSkills = generatedResume?.selectedExperienceSkills[skillsMenuAnchor.expIndex] || [];
+          if (selectedSkills.includes(idx)) return null;
+          return (
+            <MenuItem key={idx} onClick={() => handleAddSkill(skillsMenuAnchor.expIndex, idx)}>
+              {skill}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+
+      {/* Accomplishments Menu */}
+      <Menu
+        anchorEl={accomplishmentsMenuAnchor?.element}
+        open={Boolean(accomplishmentsMenuAnchor)}
+        onClose={() => setAccomplishmentsMenuAnchor(null)}
+      >
+        {accomplishmentsMenuAnchor && resume.experience[accomplishmentsMenuAnchor.expIndex].accomplishments.map((acc, idx) => {
+          const selectedAccomplishments = generatedResume?.selectedExperienceAccomplishments[accomplishmentsMenuAnchor.expIndex] || [];
+          if (selectedAccomplishments.includes(idx)) return null;
+          return (
+            <MenuItem key={idx} onClick={() => handleAddAccomplishment(accomplishmentsMenuAnchor.expIndex, idx)}>
+              {acc}
+            </MenuItem>
+          );
+        })}
+      </Menu>
 
       {/* Projects */}
       {resume.projects && resume.projects.length > 0 && (
