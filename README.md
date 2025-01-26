@@ -1,25 +1,38 @@
 # Target Practice
 
-A React-based web application for managing resumes and job applications. Built with Vite, Material UI, and GitHub API integration.
+Create resumes that are targeted at specific job postings.
 
 ## The Problem
 
-Companies increasingly use AI/LLMs to process job applications and resumes. This creates a need to:
+Hiring managers are so slammed with stacks of resumes, that they really have to be
+spoonfed the exact information they're looking for. But that's a lot of work on you,
+the job candidate.
 
-1. **Optimize for AI Processing**: Each resume needs to be clear, specific, and formatted in a way that's easily parsed by LLMs
-2. **Tailor Content**: Different roles need different aspects of your experience highlighted
-3. **Maintain Accuracy**: While tailoring content, it's crucial not to fabricate or exaggerate details
+Furthermore, it sucks to write a resume. It's hard enough trying to remember what you
+did, now you also have to phrase it so that it sounds good. And did I even do anything
+that sounds good?
 
-This app solves these challenges through a "master copy" approach:
+## The Solution
 
-- Maintain a verbose, comprehensive version of your resume with ALL details
-- For each job application, the app uses AI to:
-  - Analyze the job posting's explicit and implicit requirements
-  - Select and reframe relevant experiences from your master copy
-  - Format a tailored version that emphasizes matching qualifications
-  - Never invent details, only reframe what's already documented
+It's a two step process:
 
-This ensures each application is both tailored and truthful, optimized for both human and AI readers.
+1. Build a resume. Not just a resume, a huge bank of stories about projects, etc.
+2. Upload job description, and export a resume that's targeted specifically to it.
+
+The stories are key. We use an AI to interview you, to prod you with questions to talk
+more and more about details that you've forgotten. The AI also takes care of making
+sure it all sounds professional. Using the AI, you can generate accomplishments & 
+skills extracted from the stories. In my case, I have 20-30 skills for each of my jobs.
+Make it extremely comprehensive.
+
+UX Design Principle: You always have the ability to edit any LLM-generated text.
+
+When it comes time to generating the targeted resume, after uploading the job posting,
+the LLM analyzes the post for what's needed to be successful. You can collaborate on
+that analysis, and then generate a resume PDF. The final resume is mostly the same as
+the full resume, but filtered down to just accomplishments & skills that are relevant
+to the job posting.
+
 
 ## Architecture
 
@@ -64,9 +77,12 @@ The application uses:
    ```
 3. Create a `.env` file with:
    ```
-   VITE_GH_ACCESS_KEY=your_github_token
+   VITE_GH_ACCESS_KEY=your_github_access_key
    VITE_ANTH_API_KEY=your_anthropic_key
    ```
+   The Github access key is acquired by running `gh auth token`. Your Anthropic
+   key should be obtained from Anthropic [here](https://docs.anthropic.com/en/api/getting-started). You'll probably have to setup a credit card with Anthropic,
+   but it likely won't cost much money.
 4. Verify `.env` is not tracked by git:
    ```bash
    git ls-files .env  # Should return no output
@@ -77,6 +93,17 @@ The application uses:
    ```
 
 The frontend runs on port 3001 and the backend on port 3002.
+
+## Further Setup
+
+1. Create a *private* Github repository. e.g. call it `resume` or `resume-curated`, 
+   whatever. This is where all your data & PDFs will be stored.
+2. Create a file in that repo called `full-resume.xml`
+3. Copy the contents of `EXAMPLE.xml` and paste it into ChatGPT, Claude, or whatever
+   your favorite AI is, along with your resume, and have it convert your resume to
+   that format. It's not a big deal if it's off by a little, it just has to get close.
+4. Paste the XML version of your resume into `full-resume.xml` in your private repo.
+5. Commit/push (or just use the github UI)
 
 ## Usage
 
@@ -100,6 +127,16 @@ The frontend runs on port 3001 and the backend on port 3002.
 - `/full-resume.xml` - Complete resume data (stored in your private repo)
 - `/job-postings/{company}-{title}.xml` - Job posting data
 - `/job-postings/{company}-{title}.pdf` - Generated PDFs
+
+## Plans
+This repo was designed to work with agentic coding AIs, like Cursor Agent.
+New features should be first described in the proper markdown file in `plans/`.
+While you're using an agent, have the proper plan files in your context. Doing
+this helps keep the agents on the right path.
+
+Occasionally you need to fix bugs in the plans. Discrepancies & poorly organized
+thoughts can confuse agents. Use a reasoning model like o1 or R1 to help write
+clear & concise plans.
 
 ## Development
 
