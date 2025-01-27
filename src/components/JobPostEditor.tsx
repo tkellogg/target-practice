@@ -29,7 +29,7 @@ interface JobPostEditorProps {
 }
 
 export function JobPostEditor({ onClose }: JobPostEditorProps) {
-  const { selectedPosting } = useJobPostingStore();
+  const { selectedPosting, updateRequirements } = useJobPostingStore();
   const { resume, selectedRepo } = useResumeStore();
   const { state, startAnalysis, startGeneration, startExport } = useWorkflowStore();
 
@@ -123,6 +123,11 @@ export function JobPostEditor({ onClose }: JobPostEditorProps) {
     }
   };
 
+  const handleUpdateRequirements = async (type: 'required' | 'optional', requirements: string[]) => {
+    if (!selectedPosting) return;
+    await updateRequirements(selectedPosting, type, requirements);
+  };
+
   const steps = [
     'Review Posting',
     'Analyze Needs',
@@ -159,7 +164,11 @@ export function JobPostEditor({ onClose }: JobPostEditorProps) {
         )}
         {activeStep === 1 && selectedPosting?.analysis && (
           <Box>
-            <JobRequirements analysis={selectedPosting.analysis} />
+            <JobRequirements 
+              analysis={selectedPosting.analysis} 
+              isEditable={true}
+              onUpdateRequirements={handleUpdateRequirements}
+            />
           </Box>
         )}
         {activeStep === 2 && (

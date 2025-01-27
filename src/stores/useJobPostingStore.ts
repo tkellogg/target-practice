@@ -231,19 +231,30 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
 
   createPosting: async (posting) => {
     try {
+      console.log('[DEBUG] Starting to create posting:', posting);
       set({ isLoading: true, error: null });
       const { selectedRepo } = get();
-      if (!selectedRepo) return;
+      console.log('[DEBUG] Selected repo:', selectedRepo);
+      if (!selectedRepo) {
+        console.log('[DEBUG] No repo selected, returning');
+        return;
+      }
 
       const { owner, repo } = parseRepoString(selectedRepo);
+      console.log('[DEBUG] Parsed repo info:', { owner, repo });
       const xml = postingToXML(posting);
+      console.log('[DEBUG] Generated XML:', xml);
       const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const path = `job-postings/${fileSlug}.xml`;
+      console.log('[DEBUG] Will save to path:', path);
 
       await saveFile(owner, repo, path, xml);
+      console.log('[DEBUG] File saved successfully');
       await get().loadPostings();
+      console.log('[DEBUG] Postings reloaded');
+      set({ isLoading: false });
     } catch (error) {
-      console.error('Error creating job posting:', error);
+      console.error('[DEBUG] Error creating job posting:', error);
       set({ error: 'Failed to create job posting', isLoading: false });
     }
   },

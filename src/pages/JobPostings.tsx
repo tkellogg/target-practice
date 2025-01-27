@@ -39,23 +39,31 @@ export function JobPostings() {
   };
 
   const handleCreate = async () => {
-    if (!newPosting.company || !newPosting.title || !newPosting.url || !newPosting.rawText) {
+    console.log('[DEBUG] handleCreate called with newPosting:', newPosting);
+    if (!newPosting.company || !newPosting.title || !newPosting.rawText) {
+      console.log('[DEBUG] Missing required fields:', {
+        hasCompany: !!newPosting.company,
+        hasTitle: !!newPosting.title,
+        hasRawText: !!newPosting.rawText
+      });
       return;
     }
 
     try {
       const id = formatId(newPosting.company, newPosting.title);
+      console.log('[DEBUG] Generated ID:', id);
       await createPosting({
         id,
         company: newPosting.company,
         title: newPosting.title,
-        url: newPosting.url,
+        url: newPosting.url || '',
         rawText: newPosting.rawText
       });
+      console.log('[DEBUG] Posting created successfully');
       setIsDialogOpen(false);
       setNewPosting({});
     } catch (error) {
-      console.error('Failed to create posting:', error);
+      console.error('[DEBUG] Failed to create posting:', error);
     }
   };
 
@@ -143,6 +151,9 @@ export function JobPostings() {
               onChange={e => setNewPosting(prev => ({ ...prev, company: e.target.value }))}
               fullWidth
               margin="normal"
+              required
+              error={!newPosting.company}
+              helperText={!newPosting.company ? "Company is required" : ""}
             />
             <TextField
               label="Title"
@@ -150,9 +161,12 @@ export function JobPostings() {
               onChange={e => setNewPosting(prev => ({ ...prev, title: e.target.value }))}
               fullWidth
               margin="normal"
+              required
+              error={!newPosting.title}
+              helperText={!newPosting.title ? "Title is required" : ""}
             />
             <TextField
-              label="URL"
+              label="URL (optional)"
               value={newPosting.url || ''}
               onChange={e => setNewPosting(prev => ({ ...prev, url: e.target.value }))}
               fullWidth
@@ -166,6 +180,9 @@ export function JobPostings() {
               multiline
               rows={4}
               margin="normal"
+              required
+              error={!newPosting.rawText}
+              helperText={!newPosting.rawText ? "Job description is required" : ""}
             />
           </DialogContent>
           <DialogActions>
