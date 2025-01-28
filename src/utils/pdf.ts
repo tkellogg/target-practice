@@ -255,6 +255,22 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
       }
     }
 
+    // Education section
+    if (resume.education.length > 0) {
+      y = addSectionHeader('Education', y);
+      for (const edu of resume.education) {
+        y = checkNewPage(y, lineHeight * 2);
+        setFont(doc, 'HEADING', FONT_SIZES.COMPANY);
+        y = addWrappedText(edu.college, y, FONT_SIZES.COMPANY);
+        setFont(doc, 'BODY', FONT_SIZES.BODY);
+        y = addWrappedText(edu.degree, y);
+        if (edu.grade) {
+          y = addWrappedText(`Grade: ${edu.grade}`, y, FONT_SIZES.SMALL);
+        }
+        y += lineHeight;
+      }
+    }
+
     // Closing section - moved to end
     if (posting.generatedResume?.closing) {
       y = addSectionHeader('Closing', y);

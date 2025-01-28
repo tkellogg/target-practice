@@ -69,9 +69,16 @@ export interface PersonalInfo {
   description: string
 }
 
+export interface Education {
+  college: string;
+  degree: string;
+  grade?: string;  // Optional grade/GPA
+}
+
 export interface Resume {
   personalInfo: PersonalInfo
   experience: Experience[]
   projects: Project[]
   patents: Patent[]
+  education: Education[]
 } 

@@ -28,9 +28,10 @@ import { EditableSection } from './EditableSection'
 import { ExperienceConversation } from './ExperienceConversation'
 import AddIcon from '@mui/icons-material/Add'
 import Markdown from 'markdown-to-jsx'
+import DeleteIcon from '@mui/icons-material/Delete'
 
 interface DeleteDialogState {
-  type: 'experience'
+  type: 'experience' | 'education'
   index: number
   title: string
 }
@@ -173,39 +174,112 @@ const MasterResumeEditor = () => {
         })}
 
         {/* Patents Section */}
-        <Typography variant="h4" sx={{ mb: 3, mt: 4 }}>Patents</Typography>
-        {resume?.patents?.map((patent, index) => (
-          <Card key={index} sx={{ mb: 3 }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <Typography variant="body2" sx={{ mr: 1 }}>Patent #</Typography>
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h5" gutterBottom>Patents</Typography>
+          {resume?.patents?.map((patent, index) => (
+            <Card key={index} sx={{ mb: 3 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="body2" sx={{ mr: 1 }}>Patent #</Typography>
+                  <EditableText
+                    value={patent.number}
+                    onChange={(newNumber) => {
+                      handleUpdate(r => ({
+                        ...r,
+                        patents: r.patents?.map((p, i) => 
+                          i === index ? { ...p, number: newNumber } : p
+                        )
+                      }))
+                    }}
+                  />
+                </Box>
                 <EditableText
-                  value={patent.number}
-                  onChange={(newNumber) => {
+                  value={patent.title}
+                  onChange={(newTitle) => {
                     handleUpdate(r => ({
                       ...r,
                       patents: r.patents?.map((p, i) => 
-                        i === index ? { ...p, number: newNumber } : p
+                        i === index ? { ...p, title: newTitle } : p
                       )
                     }))
                   }}
+                  multiline
                 />
-              </Box>
-              <EditableText
-                value={patent.title}
-                onChange={(newTitle) => {
-                  handleUpdate(r => ({
-                    ...r,
-                    patents: r.patents?.map((p, i) => 
-                      i === index ? { ...p, title: newTitle } : p
-                    )
-                  }))
-                }}
-                multiline
-              />
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
+
+        {/* Education Section */}
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h5" gutterBottom>
+            Education
+            <IconButton 
+              onClick={() => handleUpdate(r => ({
+                ...r,
+                education: [...(r.education || []), { college: '', degree: '', grade: '' }]
+              }))}
+              title="Add Education"
+            >
+              <AddIcon />
+            </IconButton>
+          </Typography>
+          
+          {resume?.education?.map((edu, index) => (
+            <Card key={index} sx={{ mb: 3 }}>
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Box sx={{ flex: 1 }}>
+                    <EditableText
+                      value={edu.college}
+                      onChange={(newCollege) => {
+                        handleUpdate(r => ({
+                          ...r,
+                          education: r.education.map((e, i) => 
+                            i === index ? { ...e, college: newCollege } : e
+                          )
+                        }))
+                      }}
+                      placeholder="College/University"
+                    />
+                  </Box>
+                  <IconButton 
+                    onClick={() => setDeleteDialog({ type: 'education', index, title: edu.college })}
+                    title="Delete Education"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Box>
+                
+                <EditableText
+                  value={edu.degree}
+                  onChange={(newDegree) => {
+                    handleUpdate(r => ({
+                      ...r,
+                      education: r.education.map((e, i) => 
+                        i === index ? { ...e, degree: newDegree } : e
+                      )
+                    }))
+                  }}
+                  placeholder="Degree"
+                />
+                
+                <EditableText
+                  value={edu.grade || ''}
+                  onChange={(newGrade) => {
+                    handleUpdate(r => ({
+                      ...r,
+                      education: r.education.map((e, i) => 
+                        i === index ? { ...e, grade: newGrade } : e
+                      )
+                    }))
+                  }}
+                  placeholder="Grade (optional)"
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </Box>
 
         {/* Projects Section */}
         <Typography variant="h4" sx={{ mb: 3, mt: 4 }}>Projects</Typography>

@@ -15,28 +15,21 @@
  */
 
 import React, { useState, useEffect } from 'react'
-import { TextField, Typography, Box, IconButton, useTheme } from '@mui/material'
+import { TextField, Typography, Box, IconButton, useTheme, SxProps } from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 
-interface EditableTextProps {
+export interface EditableTextProps {
   value: string
-  onChange: (value: string) => void
+  onChange: (newValue: string) => void
   variant?: 'h4' | 'h5' | 'h6' | 'body1' | 'body2' | 'subtitle1' | 'subtitle2'
   multiline?: boolean
   onDelete?: () => void
   forceEdit?: boolean
-  sx?: any
+  sx?: SxProps
+  placeholder?: string
 }
 
-export const EditableText: React.FC<EditableTextProps> = ({
-  value,
-  onChange,
-  variant = 'body1',
-  multiline = false,
-  onDelete,
-  forceEdit = false,
-  sx = {}
-}) => {
+export const EditableText = ({ value, onChange, variant = 'body1', multiline = false, onDelete, forceEdit = false, sx = {}, placeholder }: EditableTextProps) => {
   const [isEditing, setIsEditing] = useState(false)
   const [tempValue, setTempValue] = useState(value)
   const theme = useTheme()
@@ -105,6 +98,7 @@ export const EditableText: React.FC<EditableTextProps> = ({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           autoFocus
+          placeholder={placeholder}
           sx={{ 
             ...sx,
             mb: multiline ? 2 : 0,
@@ -134,7 +128,7 @@ export const EditableText: React.FC<EditableTextProps> = ({
       }}
     >
       <Typography variant={variant} onClick={handleClick} sx={sx}>
-        {value}
+        {value || placeholder}
       </Typography>
       {DeleteButton}
     </Box>

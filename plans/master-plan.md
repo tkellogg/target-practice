@@ -22,7 +22,7 @@ positions (in-order), list of skills & tech used, overall description of what I 
 point accomplishments. 
 Bullet point list items always contain a delete button.
 
-Below the experience section, there are sections for open source projects, & patents. Projects are each name, URL,
+Below the experience section, there are sections for open source projects, patents & education. Projects are each name, URL,
 longer description & list of technologies used. Patents are each patent number & title, and that's it.
 
 There's a "Save" button that's always visible (via a menu bar?). When it's clicked, it takes all the editor data,
@@ -57,7 +57,8 @@ The resume has the following structure.
 3. Job history / experience
 4. Open source contributions
 5. Patents
-6. Closing: 8-10 sentences; Call out specific experiences at specific jobs and correlate them to job requirements.
+6. Education
+7. Closing: 8-10 sentences; Call out specific experiences at specific jobs and correlate them to job requirements.
 
 For each experience item, succinctly describe that experience independently of the job posting, but always implicitly allude
 to and highlight portions of the experience that demonstrate the user's suitability as a candidate for the role.

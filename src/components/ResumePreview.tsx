@@ -337,6 +337,24 @@ export function ResumePreview({ resume, generatedResume }: Props) {
         </>
       )}
 
+      {/* Education */}
+      {resume.education && resume.education.length > 0 && (
+        <>
+          <Typography variant="h6" mt={2}>Education</Typography>
+          {resume.education.map((edu, i) => (
+            <Box key={i} mt={1}>
+              <Typography variant="subtitle1">{edu.college}</Typography>
+              <Typography>{edu.degree}</Typography>
+              {edu.grade && (
+                <Typography variant="body2" color="text.secondary">
+                  Grade: {edu.grade}
+                </Typography>
+              )}
+            </Box>
+          ))}
+        </>
+      )}
+
       {/* Closing */}
       {generatedResume?.closing && (
         <>
