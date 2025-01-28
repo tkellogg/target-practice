@@ -24,10 +24,10 @@ import { Resume, Experience, Anecdote } from '../types/Resume'
 import { useResumeStore } from '../stores/useResumeStore'
 import { useExperienceConversationStore } from '../stores/useExperienceConversationStore'
 import { EditableText } from './EditableText'
-import { EditableList } from './EditableList'
-import { ResumeSection } from './ResumeSection'
+import { EditableSection } from './EditableSection'
 import { ExperienceConversation } from './ExperienceConversation'
 import AddIcon from '@mui/icons-material/Add'
+import Markdown from 'markdown-to-jsx'
 
 interface DeleteDialogState {
   type: 'experience'
@@ -136,12 +136,12 @@ const MasterResumeEditor = () => {
                   )}
                 </Box>
 
-                <ResumeSection
-                  title="Description"
-                  content={exp.description}
-                  issues={[]}
-                  onRegenerate={async () => {}}
-                  onChange={(newContent) => {
+                <EditableSection
+                  title=""
+                  description={exp.description}
+                  skills={exp.skills}
+                  accomplishments={exp.accomplishments}
+                  onDescriptionChange={(newContent) => {
                     handleUpdate(r => ({
                       ...r,
                       experience: r.experience.map((e, i) => 
@@ -149,15 +149,7 @@ const MasterResumeEditor = () => {
                       )
                     }))
                   }}
-                  experience={exp}
-                  type="description"
-                />
-
-                <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Skills</Typography>
-                <EditableList
-                  title="Skills"
-                  items={exp.skills}
-                  onChange={(newSkills) => {
+                  onSkillsChange={(newSkills) => {
                     handleUpdate(r => ({
                       ...r,
                       experience: r.experience.map((e, i) => 
@@ -165,14 +157,7 @@ const MasterResumeEditor = () => {
                       )
                     }))
                   }}
-                  collapsible={true}
-                />
-
-                <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Accomplishments</Typography>
-                <EditableList
-                  title="Accomplishments"
-                  items={exp.accomplishments}
-                  onChange={(newAccomplishments) => {
+                  onAccomplishmentsChange={(newAccomplishments) => {
                     handleUpdate(r => ({
                       ...r,
                       experience: r.experience.map((e, i) => 
@@ -180,54 +165,8 @@ const MasterResumeEditor = () => {
                       )
                     }))
                   }}
+                  experience={exp}
                 />
-
-                {/* Display anecdotes if they exist */}
-                <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Anecdotes</Typography>
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <IconButton 
-                      onClick={() => handleStartConversation(exp)}
-                      size="small"
-                      title="Add new anecdote"
-                    >
-                      <AddIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                  {exp.anecdotes?.map((anecdote, i) => (
-                    <Box key={i} sx={{ mb: 2 }}>
-                      <details>
-                        <summary style={{ 
-                          cursor: 'pointer',
-                          color: 'text.secondary',
-                          fontSize: '0.875rem',
-                          marginBottom: '0.5rem'
-                        }}>
-                          {anecdote.conversationContext?.messages[0]?.content || 'Anecdote'} ({new Date(anecdote.timestamp).toLocaleDateString()})
-                        </summary>
-                        <Box sx={{ ml: 2 }}>
-                          <EditableText
-                            value={anecdote.content}
-                            onChange={(newContent) => {
-                              handleUpdate(r => ({
-                                ...r,
-                                experience: r.experience.map((e, eIndex) => 
-                                  eIndex === index ? {
-                                    ...e,
-                                    anecdotes: e.anecdotes?.map((a, aIndex) =>
-                                      aIndex === i ? { ...a, content: newContent } : a
-                                    )
-                                  } : e
-                                )
-                              }))
-                            }}
-                            multiline
-                          />
-                        </Box>
-                      </details>
-                    </Box>
-                  ))}
-                </Box>
               </CardContent>
             </Card>
           )

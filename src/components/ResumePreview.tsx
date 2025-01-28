@@ -21,6 +21,8 @@ import AddIcon from '@mui/icons-material/Add'
 import { Resume } from '../types/Resume'
 import { GeneratedResume } from '../types/JobPosting'
 import { useJobPostingStore } from '../stores/useJobPostingStore'
+import { EditableText } from './EditableText'
+import { EditableList } from './EditableList'
 
 interface Props {
   resume: Resume | null
@@ -116,6 +118,32 @@ export function ResumePreview({ resume, generatedResume }: Props) {
     setAccomplishmentsMenuAnchor(null);
   };
 
+  const handleUpdateOverview = (newOverview: string) => {
+    if (!selectedPosting?.generatedResume) return;
+
+    const updatedPosting = {
+      ...selectedPosting,
+      generatedResume: {
+        ...selectedPosting.generatedResume,
+        overview: newOverview
+      }
+    };
+    optimisticUpdate(updatedPosting);
+  };
+
+  const handleUpdateClosing = (newClosing: string) => {
+    if (!selectedPosting?.generatedResume) return;
+
+    const updatedPosting = {
+      ...selectedPosting,
+      generatedResume: {
+        ...selectedPosting.generatedResume,
+        closing: newClosing
+      }
+    };
+    optimisticUpdate(updatedPosting);
+  };
+
   return (
     <Box>
       {/* Personal Info */}
@@ -128,7 +156,11 @@ export function ResumePreview({ resume, generatedResume }: Props) {
       {generatedResume?.overview && (
         <>
           <Typography variant="h6" mt={2}>Overview</Typography>
-          <Typography>{generatedResume.overview}</Typography>
+          <EditableText
+            value={generatedResume.overview}
+            onChange={handleUpdateOverview}
+            multiline
+          />
         </>
       )}
 
@@ -156,23 +188,24 @@ export function ResumePreview({ resume, generatedResume }: Props) {
               <Typography variant="subtitle2" mt={1}>Key Accomplishments:</Typography>
               <ul style={{ listStyleType: 'none', padding: 0 }}>
                 {selectedAccomplishments.map((accIndex) => (
-                  <li key={accIndex} style={{ display: 'flex', alignItems: 'center' }}>
+                  <li key={accIndex} style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
                     <Typography style={{ flex: 1 }}>• {exp.accomplishments[accIndex]}</Typography>
                     <IconButton size="small" onClick={() => handleRemoveAccomplishment(i, accIndex)}>
                       <CloseIcon fontSize="small" />
                     </IconButton>
                   </li>
                 ))}
-                {availableAccomplishments.length > 0 && (
-                  <li>
+                <li>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography color="text.secondary" sx={{ flex: 1 }}>Add from master resume...</Typography>
                     <IconButton 
                       size="small" 
                       onClick={(event) => setAccomplishmentsMenuAnchor({ element: event.currentTarget, expIndex: i })}
                     >
                       <AddIcon fontSize="small" />
                     </IconButton>
-                  </li>
-                )}
+                  </Box>
+                </li>
               </ul>
             </>
 
@@ -308,7 +341,11 @@ export function ResumePreview({ resume, generatedResume }: Props) {
       {generatedResume?.closing && (
         <>
           <Typography variant="h6" mt={2}>Closing</Typography>
-          <Typography>{generatedResume.closing}</Typography>
+          <EditableText
+            value={generatedResume.closing}
+            onChange={handleUpdateClosing}
+            multiline
+          />
         </>
       )}
     </Box>

@@ -18,13 +18,22 @@ import * as dotenv from 'dotenv'
 // Load env vars before anything else
 dotenv.config()
 
-import express, { Express, Request, Response } from 'express'
+import express, { Express, Request, Response, Router, RequestHandler } from 'express'
 import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
-import { generateConversationStartersPrompt, generateConversationPrompt, summarizeConversationPrompt, analyzeJobPostingPrompt } from './src/utils/prompts'
+import { 
+  generateConversationStartersPrompt, 
+  generateConversationPrompt, 
+  summarizeConversationPrompt, 
+  analyzeJobPostingPrompt,
+  generateDescriptionSuggestionsPrompt,
+  generateSkillsSuggestionsPrompt,
+  generateAccomplishmentsSuggestionsPrompt
+} from './src/utils/prompts'
 import type { Experience } from './src/types/Resume'
 
 const app: Express = express()
+const router: Router = express.Router()
 const port = 3002
 
 app.use(cors())
@@ -39,7 +48,7 @@ const anthropic = new Anthropic({
   apiKey: process.env.VITE_ANTH_API_KEY
 })
 
-app.post('/api/analyze', async (req: Request, res: Response) => {
+const analyzeHandler: RequestHandler = async (req, res) => {
   try {
     const { prompt } = req.body
     
@@ -63,14 +72,15 @@ app.post('/api/analyze', async (req: Request, res: Response) => {
     console.error('Error analyzing:', error)
     res.status(500).json({ error: 'Failed to analyze' })
   }
-})
+}
 
-app.post('/api/conversation', async (req: Request, res: Response) => {
+const conversationHandler: RequestHandler = async (req, res) => {
   const { messages, experience, project } = req.body
   const item = experience || project
 
   if (!item) {
-    return res.status(400).json({ error: 'No experience or project provided' })
+    res.status(400).json({ error: 'No experience or project provided' })
+    return
   }
 
   try {
@@ -87,9 +97,9 @@ app.post('/api/conversation', async (req: Request, res: Response) => {
     console.error('Error in conversation:', error)
     res.status(500).json({ error: 'Failed to process conversation' })
   }
-})
+}
 
-app.post('/api/suggestions', async (req: Request, res: Response) => {
+const suggestionsHandler: RequestHandler = async (req, res) => {
   try {
     const { experience, project } = req.body
     const item = experience || project
@@ -125,14 +135,63 @@ app.post('/api/suggestions', async (req: Request, res: Response) => {
     console.error('Error generating suggestions:', error)
     res.status(500).json({ error: 'Failed to generate suggestions' })
   }
-})
+}
 
-app.post('/api/summarize', async (req: Request, res: Response) => {
+const augmentHandler: RequestHandler = async (req, res) => {
+  try {
+    const { experience, type, anecdote, customPrompt } = req.body
+    let prompt: string
+
+    console.log('Augment request:', { type, customPrompt }) // Per rules: Log everything
+
+    switch (type) {
+      case 'description':
+        prompt = generateDescriptionSuggestionsPrompt(experience, anecdote, customPrompt)
+        break
+      case 'skills':
+        prompt = generateSkillsSuggestionsPrompt(experience, anecdote, customPrompt)
+        break
+      case 'accomplishments':
+        prompt = generateAccomplishmentsSuggestionsPrompt(experience, anecdote, customPrompt)
+        break
+      default:
+        throw new Error(`Invalid augmentation type: ${type}`)
+    }
+
+    const response = await anthropic.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      temperature: 0.7,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    })
+
+    const content = response.content[0].type === 'text' ? response.content[0].text : ''
+    console.log('AI Suggestions:', content) // Per rules: Log everything
+    
+    // Extract JSON from the response
+    const json = JSON.parse(content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1))
+    
+    if (!json.suggestions || !Array.isArray(json.suggestions)) {
+      throw new Error('Invalid response format from LLM')
+    }
+
+    res.json(json)
+  } catch (error) {
+    console.error('Error in /api/augment:', error)
+    res.status(500).json({ error: 'Failed to generate suggestions' })
+  }
+}
+
+const summarizeHandler: RequestHandler = async (req, res) => {
   const { messages, experience, project } = req.body
   const item = experience || project
 
   if (!item) {
-    return res.status(400).json({ error: 'No experience or project provided' })
+    res.status(400).json({ error: 'No experience or project provided' })
+    return
   }
 
   try {
@@ -154,7 +213,16 @@ app.post('/api/summarize', async (req: Request, res: Response) => {
     console.error('Error summarizing conversation:', error)
     res.status(500).json({ error: 'Failed to summarize conversation' })
   }
-})
+}
+
+router.post('/analyze', analyzeHandler)
+router.post('/conversation', conversationHandler)
+router.post('/suggestions', suggestionsHandler)
+router.post('/augment', augmentHandler)
+router.post('/summarize', summarizeHandler)
+
+// Mount the router with the /api prefix
+app.use('/api', router)
 
 app.listen(port, () => {
   console.log(`Server is running at http://localhost:${port}`)

@@ -15,7 +15,7 @@
  */
 
 import { jsPDF } from 'jspdf'
-import { JobPosting } from '../types/JobPosting'
+import { JobPosting, GeneratedResume } from '../types/JobPosting'
 import { Resume } from '../types/Resume'
 import { Octokit } from '@octokit/rest'
 import { parseRepoString } from './github'
@@ -143,23 +143,24 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
   setFont(doc, 'HEADING', FONT_SIZES.TITLE);
   y = addWrappedText(resume.personalInfo.name, y, FONT_SIZES.TITLE)
   setFont(doc, 'BODY', FONT_SIZES.BODY);
-  y = addWrappedText(resume.personalInfo.email, y, FONT_SIZES.BODY)
-  y = addWrappedText(resume.personalInfo.phone, y, FONT_SIZES.BODY)
   y = addWrappedText(resume.personalInfo.address, y, FONT_SIZES.BODY) + lineHeight
-
-  // Add experience section
-  y = addSectionHeader('Experience', y);
   
   if (posting.generatedResume) {
-    const { selectedExperienceAccomplishments, selectedExperienceSkills, overview, closing } = posting.generatedResume;
+    const { selectedExperienceAccomplishments, selectedExperienceSkills, experienceMap, overview, closing } = posting.generatedResume;
+    console.log("Experience Map:", experienceMap);
     
     // Overview section
     y = addSectionHeader('Overview', y);
     y = addWrappedText(overview, y) + lineHeight;
 
+    // Add experience section
+    y = addSectionHeader('Experience', y);
+
     resume.experience.forEach((exp, i) => {
-      const selectedAccomplishments = selectedExperienceAccomplishments[i] || [];
-      const selectedSkills = selectedExperienceSkills[i] || [];
+      const selectedAccomplishments = Object.entries(selectedExperienceAccomplishments)
+        .find(([key]) => parseInt(key) === i)?.[1] || [];
+      const selectedSkills = Object.entries(selectedExperienceSkills)
+        .find(([key]) => parseInt(key) === i)?.[1] || [];
 
       // Check if we need a new page for this experience block
       y = checkNewPage(y, lineHeight * 6);
@@ -187,7 +188,7 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
         y = addWrappedText('Key Accomplishments:', y);
         setFont(doc, 'BODY', FONT_SIZES.BODY);
 
-        selectedAccomplishments.forEach((accIndex) => {
+        selectedAccomplishments.forEach(accIndex => {
           y = checkNewPage(y, lineHeight * 2);
           y = addWrappedText(`• ${exp.accomplishments[accIndex]}`, y);
         });
@@ -215,13 +216,14 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
       y = addSectionHeader('Open Source Projects', y)
       // Filter project items based on selected accomplishments/skills
       const filteredProjects = resume.projects.map((proj, i) => {
-        const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[i] || [];
-        const selectedSkills = posting.generatedResume?.selectedProjectSkills[i] || [];
+        const projId = `proj_${i}`;
+        const selectedAccomplishments = posting.generatedResume?.selectedProjectAccomplishments[projId] || [];
+        const selectedSkills = posting.generatedResume?.selectedProjectSkills[projId] || [];
 
         return {
           ...proj,
-          accomplishments: selectedAccomplishments.map(idx => proj.accomplishments[idx]),
-          skills: selectedSkills.map(idx => proj.skills[idx])
+          accomplishments: proj.accomplishments.filter((_, idx) => selectedAccomplishments.includes(`acc_${idx}`)),
+          skills: proj.skills.filter((_, idx) => selectedSkills.includes(`skill_${idx}`))
         };
       });
       for (const project of filteredProjects) {
@@ -239,7 +241,7 @@ export async function generateAndSavePDF(posting: JobPosting, selectedRepo: stri
         }
 
         y = checkNewPage(y)
-        y = addWrappedText(project.description, y) + lineHeight
+        y = addWrappedText(project.description, y) + lineHeight/2
         y = addWrappedText(`Technologies: ${project.technologies.join(', ')}`, y, FONT_SIZES.SMALL) + lineHeight
       }
     }

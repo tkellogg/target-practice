@@ -77,6 +77,34 @@ function postingToXML(posting: JobPosting): string {
     addIndexMap(resume, 'selectedProjectAccomplishments', posting.generatedResume.selectedProjectAccomplishments);
     addIndexMap(resume, 'selectedProjectSkills', posting.generatedResume.selectedProjectSkills);
     
+    // Add experience map
+    const experienceMapElem = doc.createElement('experienceMap');
+    posting.generatedResume.experienceMap.forEach((exp, index) => {
+      const expElem = doc.createElement('experience');
+      expElem.setAttribute('index', index.toString());
+      
+      const accElem = doc.createElement('accomplishments');
+      exp.accomplishments.forEach((acc, i) => {
+        const itemElem = doc.createElement('item');
+        itemElem.setAttribute('index', i.toString());
+        itemElem.setAttribute('id', acc.id);
+        accElem.appendChild(itemElem);
+      });
+      expElem.appendChild(accElem);
+      
+      const skillsElem = doc.createElement('skills');
+      exp.skills.forEach((skill, i) => {
+        const itemElem = doc.createElement('item');
+        itemElem.setAttribute('index', i.toString());
+        itemElem.setAttribute('id', skill.id);
+        skillsElem.appendChild(itemElem);
+      });
+      expElem.appendChild(skillsElem);
+      
+      experienceMapElem.appendChild(expElem);
+    });
+    resume.appendChild(experienceMapElem);
+    
     doc.documentElement.appendChild(resume);
     console.log('[DEBUG] Final XML:', doc.documentElement.outerHTML);
   }
@@ -141,7 +169,19 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
         selectedExperienceAccomplishments: parseIndexMap(generatedResumeElem, 'selectedExperienceAccomplishments item'),
         selectedExperienceSkills: parseIndexMap(generatedResumeElem, 'selectedExperienceSkills item'),
         selectedProjectAccomplishments: parseIndexMap(generatedResumeElem, 'selectedProjectAccomplishments item'),
-        selectedProjectSkills: parseIndexMap(generatedResumeElem, 'selectedProjectSkills item')
+        selectedProjectSkills: parseIndexMap(generatedResumeElem, 'selectedProjectSkills item'),
+        experienceMap: Array.from(generatedResumeElem.querySelectorAll('experienceMap > experience')).map(exp => {
+          const index = parseInt(exp.getAttribute('index') ?? '0');
+          return {
+            index,
+            accomplishments: Array.from(exp.querySelectorAll('accomplishments > item')).map(item => ({
+              id: parseInt(item.getAttribute('id') ?? item.getAttribute('index') ?? '0').toString()
+            })),
+            skills: Array.from(exp.querySelectorAll('skills > item')).map(item => ({
+              id: parseInt(item.getAttribute('id') ?? item.getAttribute('index') ?? '0').toString()
+            }))
+          };
+        }).sort((a, b) => a.index - b.index).map(({ accomplishments, skills }) => ({ accomplishments, skills }))
       };
       console.log('[DEBUG] Generated resume object:', posting.generatedResume);
     }
@@ -367,10 +407,20 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         selectedExperienceAccomplishments: selectedExperienceAccomplishments || {},
         selectedExperienceSkills: selectedExperienceSkills || {},
         selectedProjectAccomplishments: {}, // Not implemented yet
-        selectedProjectSkills: {} // Not implemented yet
+        selectedProjectSkills: {}, // Not implemented yet
+        experienceMap: resume.experience.map((exp, expIndex) => {
+          const selectedAccs = selectedExperienceAccomplishments[expIndex] || [];
+          const selectedSkills = selectedExperienceSkills[expIndex] || [];
+          return {
+            accomplishments: exp.accomplishments.map((_, i) => ({
+              id: selectedAccs.includes(i) ? i.toString() : '-1'
+            })),
+            skills: exp.skills.map((_, i) => ({
+              id: selectedSkills.includes(i) ? i.toString() : '-1'
+            }))
+          };
+        })
       };
-
-      console.log('[DEBUG] Generated resume before save:', JSON.stringify(generatedResume));
 
       // Update posting with generated resume
       posting.generatedResume = generatedResume;
