@@ -23,6 +23,12 @@ export function parseXMLToResume(xml: string): Resume | null {
   const parser = new DOMParser()
   const doc = parser.parseFromString(xml, 'application/xml')
 
+  // Check if the XML is valid
+  if (doc.querySelector('parsererror')) {
+    console.error('Invalid XML:', xml)
+    return null
+  }
+
   try {
     const personalInfo = {
       name: doc.querySelector('personalInfo > name')?.textContent || '',
@@ -62,6 +68,12 @@ export function parseXMLToResume(xml: string): Resume | null {
       }))
     }))
 
+    const education = Array.from(doc.querySelectorAll('education > item')).map(item => ({
+      college: item.querySelector('college')?.textContent || '',
+      degree: item.querySelector('degree')?.textContent || '',
+      grade: item.querySelector('grade')?.textContent || undefined
+    }))
+
     const projects = Array.from(doc.querySelectorAll('projects > project')).map(project => ({
       name: project.querySelector('name')?.textContent || '',
       url: project.querySelector('url')?.textContent || '',
@@ -94,7 +106,7 @@ export function parseXMLToResume(xml: string): Resume | null {
       title: patent.querySelector('title')?.textContent || ''
     }))
 
-    return { personalInfo, experience, projects, patents }
+    return { personalInfo, experience, education, projects, patents }
   } catch (error) {
     console.error('Failed to parse resume XML:', error)
     return null

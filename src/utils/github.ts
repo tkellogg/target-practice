@@ -16,9 +16,13 @@
 
 import { Octokit } from '@octokit/rest';
 
-const octokit = new Octokit({
+let octokit = new Octokit({
   auth: import.meta.env.VITE_GH_ACCESS_KEY
 });
+
+export function setOctokit(instance: Octokit) {
+  octokit = instance;
+}
 
 // Helper function to safely encode Unicode strings to base64
 function unicodeToBase64(str: string): string {
@@ -47,13 +51,13 @@ export async function getFileContent(owner: string, repo: string, path: string):
     });
 
     if (!('content' in response.data)) {
-      throw new Error('Invalid response from GitHub');
+      throw new Error('Failed to get file content');
     }
 
     return base64ToUnicode(response.data.content.replace(/\n/g, ''));
   } catch (error) {
     console.error('Failed to get file content:', error);
-    throw error;
+    throw new Error('Failed to get file content');
   }
 }
 
@@ -122,10 +126,10 @@ export async function listRepos(): Promise<Array<{ fullName: string }>> {
   }
 }
 
-export function parseRepoString(repoString: string): { owner: string; repo: string } {
+export function parseRepoString(repoString: string): { owner: string; repo: string } | null {
   const [owner, repo] = repoString.split('/');
   if (!owner || !repo) {
-    throw new Error('Invalid repository string format. Expected "owner/repo"');
+    return null;
   }
   return { owner, repo };
 }
@@ -143,9 +147,33 @@ export async function checkFileExists(owner: string, repo: string, path: string)
     }
     return null;
   } catch (error) {
-    if ((error as any).status === 404) {
-      return null;
+    return null;
+  }
+}
+
+export async function deleteFile(owner: string, repo: string, path: string): Promise<void> {
+  try {
+    // Get the file's SHA
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
+      path
+    });
+
+    if (!('sha' in response.data)) {
+      throw new Error('Failed to get file SHA');
     }
+
+    await octokit.repos.deleteFile({
+      owner,
+      repo,
+      path,
+      message: `Delete ${path}`,
+      sha: response.data.sha,
+      branch: 'main'
+    });
+  } catch (error) {
+    console.error('Failed to delete file:', error);
     throw error;
   }
 } 

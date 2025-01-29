@@ -17,7 +17,7 @@
 import { create } from 'zustand';
 import type { Resume, Experience } from '../types/Resume';
 import type { JobPosting, JobAnalysis, GeneratedResume } from '../types/JobPosting';
-import { getFileContent, saveFile, listFiles, parseRepoString } from '../utils/github';
+import { getFileContent, saveFile, listFiles, parseRepoString, deleteFile } from '../utils/github';
 import { analyzeJobPostingPrompt, generateResumeOverviewPrompt, selectExperiencesPrompt, generateResumeClosingPrompt } from '../utils/prompts';
 
 interface JobPostingStore {
@@ -61,6 +61,7 @@ function postingToXML(posting: JobPosting): string {
     parent.appendChild(elem);
   };
 
+  addElement(doc.documentElement, 'id', posting.id);
   addElement(doc.documentElement, 'company', posting.company);
   addElement(doc.documentElement, 'title', posting.title);
   addElement(doc.documentElement, 'url', posting.url);
@@ -141,7 +142,7 @@ function parseXMLToPosting(xml: string, id: string): JobPosting | null {
     console.log('[DEBUG] Starting to parse XML for posting:', id);
     console.log('[DEBUG] Full XML content:', xml);
     const posting: JobPosting = {
-      id,
+      id: doc.querySelector('id')?.textContent ?? id,
       company: doc.querySelector('company')?.textContent ?? '',
       title: doc.querySelector('title')?.textContent ?? '',
       url: doc.querySelector('url')?.textContent ?? '',
@@ -280,7 +281,13 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
         return;
       }
 
-      const { owner, repo } = parseRepoString(selectedRepo);
+      const repoInfo = parseRepoString(selectedRepo);
+      if (!repoInfo) {
+        console.error('[DEBUG] Invalid repo string:', selectedRepo);
+        return;
+      }
+      const { owner, repo } = repoInfo;
+
       console.log('[DEBUG] Parsed repo info:', { owner, repo });
       const xml = postingToXML(posting);
       console.log('[DEBUG] Generated XML:', xml);
@@ -308,7 +315,10 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
     const { selectedRepo } = get();
     if (!selectedRepo) return;
 
-    const { owner, repo } = parseRepoString(selectedRepo);
+    const repoInfo = parseRepoString(selectedRepo);
+    if (!repoInfo) return;
+    const { owner, repo } = repoInfo;
+
     const xml = postingToXML(posting);
     const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const path = `job-postings/${fileSlug}.xml`;
@@ -322,16 +332,69 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
   updatePosting: async (posting) => {
     try {
       set({ isLoading: true, error: null });
-      const { selectedRepo } = get();
+      const { selectedRepo, selectedPosting } = get();
       if (!selectedRepo) return;
 
-      const { owner, repo } = parseRepoString(selectedRepo);
-      const xml = postingToXML(posting);
-      const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      const path = `job-postings/${fileSlug}.xml`;
+      const repoInfo = parseRepoString(selectedRepo);
+      if (!repoInfo) {
+        set({ error: 'Invalid repository format', isLoading: false });
+        return;
+      }
+      const { owner, repo } = repoInfo;
 
-      await saveFile(owner, repo, path, xml);
-      await get().loadPostings();
+      const xml = postingToXML(posting);
+      
+      // Generate old and new file paths
+      const oldFileSlug = selectedPosting 
+        ? `${selectedPosting.company}-${selectedPosting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        : null;
+      const newFileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      
+      const oldPath = oldFileSlug ? `job-postings/${oldFileSlug}.xml` : null;
+      const newPath = `job-postings/${newFileSlug}.xml`;
+
+      // If the file path changed, delete the old file
+      if (oldPath && oldPath !== newPath) {
+        try {
+          await deleteFile(owner, repo, oldPath);
+        } catch (error) {
+          console.error('Error deleting old job posting file:', error);
+        }
+      }
+
+      // Save the new file first
+      await saveFile(owner, repo, newPath, xml);
+      
+      // Update state immediately with the new posting
+      set(state => ({
+        selectedPosting: posting,
+        postings: state.postings.map(p => p.id === posting.id ? posting : p)
+      }));
+      
+      // Then reload to ensure consistency
+      const files = await listFiles(owner, repo, 'job-postings');
+      const postings = await Promise.all(
+        files
+          .filter((f: string) => f.endsWith('.xml'))
+          .map(async (file: string) => {
+            const content = await getFileContent(owner, repo, file);
+            const id = file.replace('job-postings/', '').replace('.xml', '');
+            const parsedPosting = parseXMLToPosting(content, id);
+            // If this is the posting we just updated, use our updated version
+            return parsedPosting?.id === posting.id ? posting : parsedPosting;
+          })
+      );
+
+      const filteredPostings = postings.filter((p): p is JobPosting => p !== null);
+      
+      // Find the updated posting in the reloaded list
+      const updatedSelectedPosting = filteredPostings.find(p => p.id === posting.id);
+
+      set({ 
+        postings: filteredPostings,
+        selectedPosting: updatedSelectedPosting || posting,
+        isLoading: false 
+      });
     } catch (error) {
       console.error('Error updating job posting:', error);
       set({ error: 'Failed to update job posting', isLoading: false });
@@ -433,7 +496,11 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
       await get().updatePosting(posting);
       
       // Debug log the posting after actual save
-      const { owner, repo } = parseRepoString(get().selectedRepo!);
+      const repoInfo = parseRepoString(get().selectedRepo!);
+      if (!repoInfo) {
+        throw new Error('Invalid repository format');
+      }
+      const { owner, repo } = repoInfo;
       const fileSlug = `${posting.company}-${posting.title}`.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       const path = `job-postings/${fileSlug}.xml`;
       const savedXml = await getFileContent(owner, repo, path);
@@ -474,7 +541,8 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to analyze posting: ${response.statusText}`);
+        set({ error: 'Failed to analyze job posting', isLoading: false });
+        return;
       }
 
       const data = await response.json();
@@ -486,22 +554,27 @@ export const useJobPostingStore = create<JobPostingStore>((set, get) => ({
 
       // Extract JSON from the response
       const jsonStr = content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1);
-      const analysis = JSON.parse(jsonStr) as JobAnalysis;
+      
+      try {
+        const analysis = JSON.parse(jsonStr) as JobAnalysis;
+        
+        // Update posting with analysis
+        const updatedPosting = {
+          ...posting,
+          analysis
+        };
 
-      // Update posting with analysis
-      const updatedPosting = {
-        ...posting,
-        analysis
-      };
-
-      await get().updatePosting(updatedPosting);
+        await get().updatePosting(updatedPosting);
+      } catch (parseError) {
+        console.error('Error parsing analysis response:', parseError);
+        set({ error: 'Failed to analyze job posting', isLoading: false });
+      }
     } catch (error) {
       console.error('Error analyzing job posting:', error);
       set({ 
         error: error instanceof Error ? error.message : 'Failed to analyze job posting',
         isLoading: false 
       });
-      throw error;
     } finally {
       set({ isLoading: false });
     }
